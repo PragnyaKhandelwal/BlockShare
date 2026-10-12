@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Transfer {{ t.pk }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Transfer #{{ t.pk }} · {{ t.direction }}</h1>
+  <div class="muted">{{ t.file.name|default:"(file removed)" }}{% if t.version_number %} v{{ t.version_number }}{% endif %} · {{ t.user.username|default:"system" }} · {{ t.created_at }}</div></div>
+  <a class="btn" href="{% url 'transfers' %}">← All transfers</a>
+</div>
+<div class="grid g4" style="margin-bottom:18px">
+  <div class="stat"><div class="label">Bytes</div><div class="value">{{ t.bytes|filesizeformat }}</div></div>
+  <div class="stat"><div class="label">Duration</div><div class="value">{{ t.duration_ms|floatformat:0 }} ms</div></div>
+  <div class="stat"><div class="label">Throughput</div><div class="value">{{ t.throughput_mbps }}</div><div class="hint">Mbit/s</div></div>
+  <div class="stat"><div class="label">Status</div><div class="value"><span class="badge {{ t.status }}">{{ t.status }}</span></div><div class="hint">{{ t.chunks }} chunks · {{ t.deduplicated }} deduplicated</div></div>
+</div>
+{% if t.error %}<ul class="messages"><li class="error">{{ t.error }}</li></ul>{% endif %}
+<div class="card tight">
+  <h2>BSP/1 frame log <span class="muted small">— one row per TCP request/response exchange (72-byte header + payload)</span></h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Chunk</th><th>Op</th><th>Node</th><th>Endpoint</th><th>Key</th><th>Sent</th><th>Received</th><th>RTT</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>{% for ex in t.detail %}<tr>
+      <td>{{ ex.chunk|default_if_none:"—" }}</td><td><code>{{ ex.op|default:"" }}</code></td><td>{{ ex.node }}</td>
+      <td class="mono small">{{ ex.endpoint|default:"" }}</td><td class="mono small">{{ ex.key|default:"" }}</td>
+      <td>{{ ex.bytes_sent|default:0|filesizeformat }}</td><td>{{ ex.bytes_received|default:0|filesizeformat }}</td>
+      <td>{{ ex.rtt_ms|default:"" }}{% if ex.rtt_ms %} ms{% endif %}</td>
+      <td><span class="badge {% if ex.status == 'OK' %}ok{% elif ex.status == 'SKIPPED' %}unknown{% else %}failed{% endif %}">{{ ex.status|default:"" }}</span></td>
+      <td class="small">{% if ex.pipeline %}pipeline {{ ex.pipeline|join:" → " }}{% endif %}{% if ex.result %}{{ ex.result }}{% endif %}{% if ex.error %}<span style="color:var(--bad)">{{ ex.error }}</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="muted">No network exchanges recorded.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

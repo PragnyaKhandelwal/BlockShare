@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load humanize %}
+{% block title %}Transfers{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Transfers</h1><div class="muted">Network activity between the coordinator and the storage nodes{% if user.is_staff %} (all users){% endif %}. Open a transfer to see its BSP/1 frame log.</div></div></div>
+<div class="card"><h2>Throughput of recent transfers (Mbit/s)</h2><canvas id="tp" height="90"></canvas></div>
+<div class="card tight"><div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Type</th><th>File</th><th>User</th><th>Mode</th><th>Bytes</th><th>Chunks</th><th>Dedup</th><th>Duration</th><th>Throughput</th><th>Nodes</th><th>Status</th><th>When</th></tr></thead>
+  <tbody>{% for t in transfers %}<tr>
+    <td><a href="{% url 'transfer_detail' t.pk %}">{{ t.pk }}</a></td>
+    <td>{{ t.direction }}</td><td>{{ t.file.name|default:"—" }}{% if t.version_number %} v{{ t.version_number }}{% endif %}</td>
+    <td>{{ t.user.username|default:"system" }}</td><td><span class="badge {{ t.mode }}">{{ t.mode }}</span></td>
+    <td>{{ t.bytes|filesizeformat }}</td><td>{{ t.chunks }}</td><td>{{ t.deduplicated }}</td>
+    <td>{{ t.duration_ms|floatformat:0 }} ms</td><td>{{ t.throughput_mbps }}</td>
+    <td class="small">{{ t.nodes_used|join:", " }}</td>
+    <td><span class="badge {{ t.status }}">{{ t.status }}</span></td><td class="muted">{{ t.created_at|naturaltime }}</td>
+  </tr>{% empty %}<tr><td colspan="13" class="muted">No transfers yet.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const d = {{ chart|safe }};
+const colors = { upload: "#4f46e5", download: "#0891b2", verify: "#d97706", repair: "#16a34a" };
+new Chart(document.getElementById("tp"), {
+  type: "bar",
+  data: { labels: d.labels, datasets: [{ label: "Mbit/s", data: d.mbps, backgroundColor: d.dir.map(x => colors[x] || "#64748b"), borderRadius: 4 }] },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+</script>
+{% endblock %}

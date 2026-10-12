@@ -1,0 +1,96 @@
+{% extends "base.html" %}{% load humanize %}
+{% block title %}Chain Explorer{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Blockchain explorer</h1><div class="muted">The decentralized control plane: contracts, blocks, events and gas — read live from the chain at <code>{{ rpc_url }}</code>.</div></div>
+  <span class="badge {% if connected %}ok{% else %}failed{% endif %}">{% if connected %}● connected{% else %}● unreachable{% endif %}</span>
+</div>
+{% if error %}<ul class="messages"><li class="error">{{ error }}</li></ul>{% endif %}
+
+{% if connected %}
+<div class="grid g4" style="margin-bottom:18px">
+  <div class="stat"><div class="label">Chain id</div><div class="value">{{ chain_id }}</div><div class="hint">{{ client }}</div></div>
+  <div class="stat"><div class="label">Latest block</div><div class="value">{{ latest }}</div></div>
+  <div class="stat"><div class="label">Transactions sent</div><div class="value">{{ txs|length }}</div><div class="hint">by BlockShare (latest 30)</div></div>
+  <div class="stat"><div class="label">Mode</div><div class="value" style="font-size:18px">{% if config.blockchain_enabled %}⛓ authoritative{% else %}standby{% endif %}</div><div class="hint">{% if config.blockchain_enabled %}contracts coordinate files{% else %}Django coordinates; chain idle{% endif %}</div></div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Smart contracts</h2>
+    <div class="kv">{% for c in contracts %}<div>{{ c.0 }}</div><div class="mono small break">{{ c.1|default:"not deployed" }}</div>{% endfor %}
+      <div>Deployed</div><div>{{ config.contracts_deployed_at|default:"—" }}</div>
+      <div>Public RPC (read-only)</div><div class="mono small">{{ request.scheme }}://{{ request.get_host }}/rpc</div>
+    </div>
+    <p class="muted small">Anyone can call the read-only methods (e.g. <code>checkPermission</code>, <code>getVersion</code>, <code>verifyChunk</code>) through the proxy and verify a file's state without trusting the Django database. Config: <a href="{% url 'api-chain' %}">/api/chain/</a></p>
+  </div>
+  <div class="card tight">
+    <h2>Latest blocks</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Block</th><th>Hash</th><th>Txs</th><th>Gas used</th></tr></thead>
+      <tbody>{% for b in blocks %}<tr><td>{{ b.number }}</td><td class="mono small">{{ b.hash|slice:":18" }}…</td><td>{{ b.txs }}</td><td>{{ b.gas|intcomma }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="card tight">
+  <h2>Contract events <span class="muted small">(decoded logs — the verifiable history of every file)</span></h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Block</th><th>Contract</th><th>Event</th><th>Arguments</th></tr></thead>
+    <tbody>{% for e in events %}<tr><td>{{ e.block }}</td><td>{{ e.contract }}</td><td><span class="badge blockchain">{{ e.event }}</span></td>
+      <td class="small">{% for k, v in e.args.items %}<div><span class="muted">{{ k }}</span> <span class="mono break">{{ v }}</span></div>{% endfor %}</td></tr>
+    {% empty %}<tr><td colspan="4" class="muted">No events yet.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="card tight">
+  <h2>User wallets <span class="muted small">(custodial keys — each user signs their own transactions)</span></h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>User</th><th>Address</th><th>Balance</th></tr></thead>
+    <tbody>{% for w in wallets %}<tr><td>{{ w.user.username }}</td><td class="mono small" data-copy="{{ w.address }}">{{ w.address }}</td><td>{{ w.balance|floatformat:4 }} ETH</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Conventional vs Blockchain — coordination latency</h2>
+    <canvas id="cmp" height="200"></canvas>
+    <div class="table-wrap"><table class="small">
+      <thead><tr><th>Operation</th><th>Conventional (ms)</th><th>Blockchain (ms)</th></tr></thead>
+      <tbody>{% for op, conv, chain in comparison.rows %}<tr><td><code>{{ op }}</code></td><td>{% if conv %}{{ conv.avg }} <span class="muted">(n={{ conv.n }})</span>{% else %}—{% endif %}</td><td>{% if chain %}{{ chain.avg }} <span class="muted">(n={{ chain.n }})</span>{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="3" class="muted">Use the system in both modes to collect measurements.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card tight">
+    <h2>Gas cost per contract function</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>Calls</th><th>Avg gas</th><th>Avg latency</th></tr></thead>
+      <tbody>{% for g in gas %}<tr><td><code>{{ g.function }}</code></td><td>{{ g.n }}</td><td>{{ g.avg|floatformat:0|intcomma }}</td><td>{{ g.lat|floatformat:1 }} ms</td></tr>
+      {% empty %}<tr><td colspan="4" class="muted">No transactions yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="card tight">
+  <h2>Transactions sent by BlockShare</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>When</th><th>Call</th><th>Signer</th><th>File</th><th>Block</th><th>Gas</th><th>Latency</th><th>Result</th></tr></thead>
+    <tbody>{% for tx in txs %}<tr><td class="muted">{{ tx.created_at|naturaltime }}</td><td><code>{{ tx.contract }}.{{ tx.function }}</code></td><td>{{ tx.user.username|default:"operator" }} <span class="mono small muted">{{ tx.sender|slice:":8" }}…</span></td><td>{{ tx.file.name|default:"—" }}</td><td>{{ tx.block_number|default:"—" }}</td><td>{{ tx.gas_used|default:"—"|intcomma }}</td><td>{{ tx.latency_ms|floatformat:0 }} ms</td><td>{% if tx.ok %}<span class="badge ok">success</span>{% else %}<span class="badge failed" title="{{ tx.error }}">reverted: {{ tx.error|truncatechars:40 }}</span>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="8" class="muted">No transactions yet.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const c = {{ comparison.chart|safe }};
+new Chart(document.getElementById("cmp"), {
+  type: "bar",
+  data: { labels: c.labels, datasets: [
+    { label: "Conventional (Django)", data: c.conventional, backgroundColor: "#0891b2", borderRadius: 4 },
+    { label: "Blockchain (contracts)", data: c.blockchain, backgroundColor: "#7c3aed", borderRadius: 4 } ] },
+  options: { indexAxis: "y", scales: { x: { type: "logarithmic", title: { display: true, text: "ms (log scale)" } } } }
+});
+</script>
+{% endblock %}

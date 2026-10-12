@@ -1,0 +1,28 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register · BlockShare</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="brand" style="color:var(--ink);padding:0 0 6px"><div class="brand-logo">🧊</div> Create account</div>
+    <p class="muted" style="margin-top:0">Every account gets its own Ethereum wallet. In Blockchain mode your wallet signs ownership and sharing transactions.</p>
+    <form method="post">{% csrf_token %}
+      {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        <input type="{% if 'password' in field.name %}password{% elif field.name == 'email' %}email{% else %}text{% endif %}" name="{{ field.name }}" id="{{ field.id_for_label }}" value="{% if 'password' not in field.name %}{{ field.value|default:'' }}{% endif %}" {% if field.field.required %}required{% endif %}>
+        {{ field.errors }}
+      </div>
+      {% endfor %}
+      <button class="btn primary" style="width:100%;justify-content:center">Register</button>
+    </form>
+    <p class="small" style="text-align:center">Already registered? <a href="{% url 'login' %}">Sign in</a></p>
+  </div>
+</div>
+</body>
+</html>

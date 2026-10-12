@@ -1,0 +1,24 @@
+{% load humanize %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>ID</th><th>Size</th><th>Version</th><th>Owner</th><th>Access</th><th>Coordination</th><th>Updated</th></tr></thead>
+  <tbody>
+  {% for item in rows %}
+    {% with f=item.0 perm=item.1 %}
+    <tr>
+      <td><a href="{% url 'file_detail' f.pk %}"><strong>{{ f.name }}</strong></a></td>
+      <td class="mono">{{ f.short_id }}</td>
+      <td>{{ f.size|filesizeformat }}</td>
+      <td>v{{ f.latest_version }}</td>
+      <td>{{ f.owner.username }}</td>
+      <td><span class="badge {{ perm }}">{{ perm }}</span></td>
+      <td>{% if f.on_chain %}<span class="badge blockchain">⛓ anchored</span>{% else %}<span class="badge conventional">Django</span>{% endif %}</td>
+      <td class="muted">{{ f.updated_at|naturaltime }}</td>
+    </tr>
+    {% endwith %}
+  {% empty %}
+    <tr><td colspan="8" class="muted">{{ empty|default:"No files yet." }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

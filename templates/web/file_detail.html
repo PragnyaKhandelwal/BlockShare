@@ -1,0 +1,164 @@
+{% extends "base.html" %}{% load humanize %}
+{% block title %}{{ file.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ file.name }}</h1>
+    <div class="actions">
+      <span class="mono muted">{{ file.short_id }}</span>
+      <span class="badge {{ perm }}">your access: {{ perm }}</span>
+      {% if file.on_chain %}<span class="badge blockchain">⛓ anchored on-chain</span>{% endif %}
+      <span class="muted small">created under {{ file.coordinator }} mode · {{ file.created_at|naturaltime }}</span>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="{% url 'file_download' file.pk %}?v={{ version.number }}">⇩ Download v{{ version.number }}</a>
+    <form method="post" action="{% url 'file_verify' file.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}"><button class="btn">✔ Verify integrity</button></form>
+  </div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Control plane — who owns it, who can access it</h2>
+    <div class="callout {% if coordinator.mode == 'blockchain' %}chain{% else %}conv{% endif %}" style="margin-bottom:12px">
+      Answered by <strong>{{ state.source }}</strong>{% if state.error %} — <span style="color:var(--bad)">{{ state.error }}</span>{% endif %}
+    </div>
+    <div class="kv">
+      <div>Owner</div><div><strong>{{ state.owner|default:file.owner.username }}</strong>{% if state.owner_address %} <span class="mono muted small break">{{ state.owner_address }}</span>{% endif %}</div>
+      <div>Latest version</div><div>v{{ state.latest_version|default:file.latest_version }}</div>
+      <div>Access grants</div><div>{% for g in state.grants %}<span class="badge {{ g.1 }}">{{ g.0 }}: {{ g.1 }}</span> {% empty %}<span class="muted">none</span>{% endfor %}</div>
+      <div>Chain file id</div><div class="mono small break" data-copy="{{ file.chain_id }}">{{ file.chain_id }}</div>
+      {% if state.registry %}<div>FileRegistry</div><div class="mono small break">{{ state.registry }}</div>
+      <div>FileSharing</div><div class="mono small break">{{ state.sharing }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Version v{{ version.number }}</h2>
+    <div class="kv">
+      <div>Size</div><div>{{ version.size|filesizeformat }} ({{ version.size|intcomma }} bytes)</div>
+      <div>Chunks</div><div>{{ version.chunk_count }} × {{ version.chunk_size|filesizeformat }}</div>
+      <div>Merkle root</div><div class="mono small break" data-copy="{{ version.merkle_root }}">{{ version.merkle_root }}</div>
+      <div>Manifest hash</div><div class="mono small break">{{ version.manifest_hash }} <span class="muted">on {% for n in manifest_nodes %}{{ n.node_id }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
+      <div>Author</div><div>{{ version.author.username|default:"—" }}</div>
+      <div>Registration tx</div><div class="mono small break">{{ version.tx_hash|default:"— (Django database record)" }}</div>
+      {% if version.comment %}<div>Comment</div><div>{{ version.comment }}</div>{% endif %}
+    </div>
+    <div class="actions" style="margin-top:12px">
+      {% for v in versions %}<a class="btn sm {% if v.number == version.number %}primary{% endif %}" href="?v={{ v.number }}">v{{ v.number }}</a>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card" id="chunks">
+  <h2>Data plane — where the chunks live</h2>
+  <div class="legend" style="margin-bottom:10px">{% for n in nodes_legend %}<span><i class="swatch" style="background:{{ n.color }}"></i>{{ n.node_id }} <span class="dot {{ n.status }}"></span></span>{% endfor %}<span>tile colour = primary replica</span></div>
+  <div class="chunk-grid" style="margin-bottom:14px">
+    {% for row in chunk_rows %}<div class="chunk" style="background:{% if row.nodes %}{{ row.nodes.0.color }}{% else %}#94a3b8{% endif %}" title="chunk #{{ row.chunk.index }} → {% for n in row.nodes %}{{ n.node_id }} {% endfor %}">{{ row.chunk.index }}</div>{% endfor %}
+  </div>
+  <details>
+    <summary><strong>Chunk table</strong> — hashes, replicas and Merkle proofs ({{ chunk_rows|length }} chunks)</summary>
+    <div class="table-wrap" style="margin-top:10px"><table>
+      <thead><tr><th>#</th><th>SHA-256 (content address)</th><th>Size</th><th>Replicas</th><th>Merkle proof</th></tr></thead>
+      <tbody>{% for row in chunk_rows %}
+        <tr>
+          <td>{{ row.chunk.index }}</td>
+          <td class="mono small break">{{ row.chunk.sha256 }}</td>
+          <td>{{ row.chunk.size|filesizeformat }}</td>
+          <td>{% for n in row.nodes %}<span class="badge" style="background:{{ n.color }}22;color:{{ n.color }}">{{ n.node_id }}</span> {% empty %}<span class="badge lost">none</span>{% endfor %}</td>
+          <td class="mono small">{% for p in row.proof %}{{ p|slice:":10" }}… {% empty %}(root){% endfor %}</td>
+        </tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+  {% if user.is_staff %}
+  <form method="post" action="{% url 'file_corrupt' file.pk %}" class="row" style="margin-top:14px" data-confirm="Corrupt this replica on purpose?">
+    {% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}">
+    <div><label>Fault injection · chunk</label><select name="sha256">{% for row in chunk_rows %}<option value="{{ row.chunk.sha256 }}">#{{ row.chunk.index }} {{ row.chunk.sha256|slice:":12" }}…</option>{% endfor %}</select></div>
+    <div><label>on node</label><select name="node">{% for n in node_ids %}<option>{{ n }}</option>{% endfor %}</select></div>
+    <button class="btn danger">☠ Corrupt replica</button>
+  </form>
+  <p class="muted small">Admin-only demo: flips bits of a stored replica. Verify detects it (Merkle root mismatch); downloads still succeed from a healthy replica and repair the bad one.</p>
+  {% endif %}
+</div>
+
+{% if verify %}
+<div class="card" id="integrity">
+  <div class="page-head" style="margin-bottom:8px">
+    <h2 style="margin:0">Integrity report · v{{ verify.version }} <span class="badge {{ verify.status }}">{{ verify.status }}</span></h2>
+    <span class="muted small">compared against {{ verify.source }}</span>
+  </div>
+  <div class="kv">
+    <div>Registered root</div><div class="mono small break">{{ verify.registered_root }}</div>
+    <div>Root of served data</div><div class="mono small break">{{ verify.served_root }}</div>
+    <div>Recoverable</div><div>{% if verify.recoverable %}<span class="badge ok">yes — every chunk has a healthy replica</span>{% else %}<span class="badge lost">no — some chunk has no healthy replica</span>{% endif %}</div>
+    {% if verify.on_chain %}<div>On-chain verifyRoot()</div><div><span class="badge {% if verify.on_chain.root_valid %}ok{% else %}failed{% endif %}">{{ verify.on_chain.root_valid|yesno:"true,false" }}</span></div>{% endif %}
+  </div>
+  <div class="table-wrap" style="margin-top:12px"><table>
+    <thead><tr><th>#</th><th>Status</th><th>Replicas</th>{% if verify.on_chain %}<th>verifyChunk() proof</th>{% endif %}</tr></thead>
+    <tbody>{% for r in verify.rows %}<tr>
+      <td>{{ r.index }}</td><td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+      <td>{% for rep in r.replicas %}<span class="badge {{ rep.state }}">{{ rep.node }}: {{ rep.state }}</span> {% endfor %}</td>
+      {% if verify.on_chain %}<td>{% if r.proof_valid is not None %}<span class="badge {% if r.proof_valid %}ok{% else %}failed{% endif %}">{{ r.proof_valid|yesno:"valid,INVALID" }}</span>{% endif %}</td>{% endif %}
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Sharing</h2>
+    {% if perm == "owner" %}
+    <form method="post" action="{% url 'file_share' file.pk %}" class="row">{% csrf_token %}
+      <div><label>User</label><input list="userlist" type="text" name="username" required placeholder="bob"></div>
+      <div><label>Permission</label><select name="permission"><option value="read">Read</option><option value="write">Read / Write</option></select></div>
+      <button class="btn primary">Share{% if system.blockchain_enabled %} (sign tx){% endif %}</button>
+    </form>
+    <datalist id="userlist">{% for u in users %}<option value="{{ u.username }}">{% endfor %}</datalist>
+    {% endif %}
+    <div class="table-wrap" style="margin-top:12px"><table>
+      <thead><tr><th>User</th><th>Permission</th><th></th></tr></thead>
+      <tbody>{% for g in state.grants %}<tr><td>{{ g.0 }}</td><td><span class="badge {{ g.1 }}">{{ g.1 }}</span></td>
+        <td>{% if perm == "owner" %}<form method="post" action="{% url 'file_revoke' file.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="username" value="{{ g.0 }}"><button class="btn sm danger">Revoke</button></form>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="3" class="muted">Not shared with anyone.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>Manage</h2>
+    {% if perm == "owner" or perm == "write" %}
+    <form method="post" action="{% url 'file_new_version' file.pk %}" enctype="multipart/form-data" class="row">{% csrf_token %}
+      <div><label>Upload new version (v{{ file.latest_version|add:1 }})</label><input type="file" name="file" required></div>
+      <div><label>Comment</label><input type="text" name="comment" maxlength="200"></div>
+      <button class="btn">Add version</button>
+    </form>
+    {% endif %}
+    {% if perm == "owner" %}
+    <form method="post" action="{% url 'file_transfer' file.pk %}" class="row" style="margin-top:12px" data-confirm="Transfer ownership? You will lose access unless the new owner shares it back.">{% csrf_token %}
+      <div><label>Transfer ownership to</label><input list="userlist" type="text" name="username" required placeholder="charlie"></div>
+      <button class="btn">Transfer</button>
+    </form>
+    <form method="post" action="{% url 'file_delete' file.pk %}" style="margin-top:12px" data-confirm="Delete this file?">{% csrf_token %}<button class="btn danger">Delete file</button></form>
+    {% endif %}
+    {% if perm == "read" %}<p class="muted">You have read-only access.</p>{% endif %}
+  </div>
+</div>
+
+<div class="grid g2">
+  <div class="card tight">
+    <h2>On-chain history</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Function</th><th>By</th><th>Gas</th><th>Block</th><th>Tx</th></tr></thead>
+      <tbody>{% for tx in chain_txs %}<tr><td><code>{{ tx.function }}</code>{% if not tx.ok %} <span class="badge failed">reverted</span>{% endif %}</td><td>{{ tx.user.username|default:"operator" }}</td><td>{{ tx.gas_used|default:"—"|intcomma }}</td><td>{{ tx.block_number|default:"—" }}</td><td class="mono small">{% if explorer_tx and tx.tx_hash %}<a href="{{ explorer_tx }}{{ tx.tx_hash }}" target="_blank" rel="noopener">{{ tx.tx_hash|slice:":12" }}…</a>{% else %}{{ tx.tx_hash|slice:":12" }}…{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="muted">No transactions for this file (it has only been coordinated by Django).</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card tight">
+    <h2>Transfers of this file</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th>User</th><th>Bytes</th><th>Time</th><th>Status</th></tr></thead>
+      <tbody>{% for t in transfers %}<tr><td><a href="{% url 'transfer_detail' t.pk %}">{{ t.direction }}</a></td><td>{{ t.user.username }}</td><td>{{ t.bytes|filesizeformat }}</td><td>{{ t.duration_ms|floatformat:0 }} ms</td><td><span class="badge {{ t.status }}">{{ t.status }}</span></td></tr>
+      {% empty %}<tr><td colspan="5" class="muted">No transfers.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}

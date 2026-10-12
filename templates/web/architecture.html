@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Architecture{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Architecture</h1><div class="muted">A modular distributed file-sharing system with switchable centralized (Django) or decentralized (smart contract) coordination.</div></div></div>
+
+<div class="card">
+  <h2>System overview</h2>
+  <pre class="mermaid">
+flowchart TB
+  U[Users / Browser / CLI] -->|HTTPS · REST · HTML| D[Django application<br/>Auth · File API · Sharing · Node manager · Monitor]
+  D --> M{System mode}
+  M -->|Blockchain OFF| C1[ConventionalCoordinator<br/>Django database]
+  M -->|Blockchain ON| C2[BlockchainCoordinator<br/>FileRegistry · FileSharing · NodeRegistry]
+  C1 --> SC[Storage controller<br/>chunking · SHA-256 · Merkle · consistent hashing]
+  C2 --> SC
+  SC -->|BSP/1 over TCP| A[(Node A)]
+  SC -->|BSP/1 over TCP| B[(Node B)]
+  SC -->|BSP/1 over TCP| C[(Node C)]
+  A <-.->|UDP gossip heartbeats| B
+  B <-.->|UDP gossip heartbeats| C
+  A <-.->|UDP gossip heartbeats| C
+  A -->|replication pipeline| B
+  B -->|replication pipeline| C
+  </pre>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Upload (Blockchain ON)</h2>
+    <pre class="mermaid">
+sequenceDiagram
+  participant U as Alice
+  participant D as Django
+  participant N1 as Node A
+  participant N2 as Node B
+  participant SC as FileRegistry
+  U->>D: POST /upload (multipart)
+  D->>D: split into chunks, SHA-256 each
+  D->>N1: BSP PUT chunk (forward to B)
+  N1->>N2: BSP PUT chunk
+  N2-->>N1: OK stored_on=[B]
+  N1-->>D: OK stored_on=[A,B]
+  D->>D: Merkle root + manifest
+  D->>SC: registerFile(id, root, manifest) signed by Alice
+  SC-->>D: FileRegistered event
+  D-->>U: 201 Created
+    </pre>
+  </div>
+  <div class="card">
+    <h2>Shared download (Blockchain ON)</h2>
+    <pre class="mermaid">
+sequenceDiagram
+  participant B as Bob
+  participant D as Django
+  participant FS as FileSharing
+  participant FR as FileRegistry
+  participant N as Nodes
+  B->>D: GET /files/F001/download
+  D->>FS: checkPermission(F001, Bob)
+  FS-->>D: READ
+  D->>FR: getVersion(F001, v)
+  FR-->>D: merkleRoot
+  D->>D: manifest root == on-chain root?
+  D->>N: parallel BSP GET chunks (failover + read repair)
+  N-->>D: chunks (SHA-256 verified)
+  D-->>B: streamed file
+    </pre>
+  </div>
+</div>
+
+<div class="card tight">
+  <h2>The two modes</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Feature</th><th>Blockchain OFF</th><th>Blockchain ON</th></tr></thead>
+    <tbody>
+      <tr><td>File storage</td><td>Distributed (chunks on nodes)</td><td>Distributed (chunks on nodes)</td></tr>
+      <tr><td>File transfer</td><td>Parallel TCP, replication pipeline</td><td>Parallel TCP, replication pipeline</td></tr>
+      <tr><td>Replication / node-failure recovery</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Ownership</td><td>Django DB</td><td><code>FileRegistry</code> (msg.sender = owner)</td></tr>
+      <tr><td>Permissions</td><td>Django DB</td><td><code>FileSharing</code> smart contract</td></tr>
+      <tr><td>File history</td><td>Django DB</td><td>On-chain version chain (Merkle roots)</td></tr>
+      <tr><td>Integrity proof</td><td>Hashes stored by Django</td><td>Root on-chain + <code>verifyChunk()</code> Merkle proofs</td></tr>
+      <tr><td>Node directory</td><td>Django DB</td><td><code>NodeRegistry</code> (lets the CLI work while Django is down)</td></tr>
+      <tr><td>Coordination</td><td>Centralized</td><td>Decentralized</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card tight">
+  <h2>Subject mapping (PBL)</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Subject</th><th>What to look at</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Blockchain</strong></td><td>Solidity contracts (<code>blockchain/contracts</code>) · Hardhat tests · per-user wallets signing txs · ownership transfer, sharing, version chain · on-chain Merkle proofs · events &amp; gas analytics (Chain Explorer) · read-only JSON-RPC proxy · mode switch with state anchoring/reconciliation</td></tr>
+      <tr><td><strong>Computer Networks</strong></td><td>Custom binary protocol BSP/1 over TCP (framing, CRC-32, HMAC auth) · replication pipeline · UDP gossip heartbeats with loss estimation · hand-written HTTP/1.1 status server · RTT probing &amp; failure detection · consistent hashing · parallel transfers, throughput &amp; frame logs · latency / crash emulation · Docker multi-host network</td></tr>
+      <tr><td><strong>Full-Stack Development</strong></td><td>Django MVC · REST API (DRF, token auth, OpenAPI/Swagger) · relational schema · authentication &amp; registration · responsive UI with drag-and-drop upload and charts · admin panel · tests &amp; CI · Docker deployment</td></tr>
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>
+{% endblock %}

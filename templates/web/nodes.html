@@ -1,0 +1,93 @@
+{% extends "base.html" %}{% load humanize %}
+{% block title %}Storage Nodes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Storage nodes</h1><div class="muted">Data plane: each node speaks <strong>BSP/1 over TCP</strong> for chunks, <strong>UDP heartbeats</strong> (gossip) with its peers and a small <strong>HTTP/1.1</strong> status endpoint.</div></div>
+  <a class="btn" href="?refresh=1">⟳ Probe now</a>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Topology</h2>
+    <svg viewBox="0 0 520 380" style="width:100%;max-height:380px">
+      {% for t in topology %}
+        <line x1="260" y1="190" x2="{{ t.x }}" y2="{{ t.y }}" stroke="{% if t.node.is_up %}#6366f1{% else %}#ef4444{% endif %}" stroke-width="2" {% if not t.node.is_up %}stroke-dasharray="6 5"{% endif %}/>
+      {% endfor %}
+      {% for a in topology %}{% for b in topology %}{% if forloop.counter > forloop.parentloop.counter %}
+        <line x1="{{ a.x }}" y1="{{ a.y }}" x2="{{ b.x }}" y2="{{ b.y }}" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 4"/>
+      {% endif %}{% endfor %}{% endfor %}
+      <circle cx="260" cy="190" r="44" fill="{% if system.blockchain_enabled %}#7c3aed{% else %}#0891b2{% endif %}"/>
+      <text x="260" y="186" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">{% if system.blockchain_enabled %}Contracts{% else %}Django{% endif %}</text>
+      <text x="260" y="202" text-anchor="middle" fill="#e0e7ff" font-size="10">coordinator</text>
+      {% for t in topology %}
+        <circle cx="{{ t.x }}" cy="{{ t.y }}" r="34" fill="#fff" stroke="{% if t.node.is_up %}#16a34a{% elif t.node.status == 'down' %}#dc2626{% else %}#d97706{% endif %}" stroke-width="3"/>
+        <text x="{{ t.x }}" y="{{ t.y|add:-4 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#172033">{{ t.node.node_id }}</text>
+        <text x="{{ t.x }}" y="{{ t.y|add:11 }}" text-anchor="middle" font-size="10" fill="#64708a">{% if t.node.last_rtt_ms %}{{ t.node.last_rtt_ms|floatformat:1 }} ms{% else %}{{ t.node.status }}{% endif %}</text>
+      {% endfor %}
+    </svg>
+    <div class="legend"><span><i class="swatch" style="background:#6366f1"></i>TCP data path</span><span><i class="swatch" style="background:#cbd5e1"></i>UDP gossip / replication pipeline</span></div>
+  </div>
+  <div class="card">
+    <h2>TCP round-trip time (BSP PING)</h2>
+    <canvas id="rtt" height="200"></canvas>
+    <p class="muted small">Sampled by the monitor every few seconds. Gaps = failed probes. Use “latency” below to emulate a slow link.</p>
+  </div>
+</div>
+
+<div class="card tight">
+  <h2>Nodes · replication factor R = {{ replication_factor }}</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Node</th><th>Endpoint (TCP / UDP / HTTP)</th><th>Status</th><th>RTT</th><th>Chunks</th><th>Data</th><th>Ring share</th><th>Placement</th><th>Gossip view (peers)</th>{% if user.is_staff %}<th>Control</th>{% endif %}</tr></thead>
+    <tbody>{% for n in nodes %}<tr>
+      <td><strong>{{ n.node_id }}</strong>{% if n.on_chain %}<br><span class="badge blockchain">⛓ NodeRegistry</span>{% endif %}</td>
+      <td class="mono small">{{ n.endpoint }}<br>udp {{ n.udp_endpoint }}{% if n.http_port %}<br>http :{{ n.http_port }}{% endif %}</td>
+      <td><span class="badge {{ n.status }}">{{ n.status }}</span>{% if n.simulated_failure %}<br><span class="badge failed">simulated crash</span>{% endif %}{% if n.latency_ms %}<br><span class="badge unknown">+{{ n.latency_ms }} ms</span>{% endif %}<br><span class="muted small">{% if n.last_seen %}seen {{ n.last_seen|naturaltime }}{% endif %}</span></td>
+      <td>{% if n.last_rtt_ms %}{{ n.last_rtt_ms|floatformat:2 }} ms{% else %}—{% endif %}</td>
+      <td>{{ n.chunk_count }}<br><span class="muted small">{{ n.replica_count }} tracked</span></td>
+      <td>{{ n.bytes_used|filesizeformat }}</td>
+      <td>{{ n.ring_share }}%</td>
+      <td>{% if n.is_active %}<span class="badge ok">accepting</span>{% else %}<span class="badge unknown">drained</span>{% endif %}</td>
+      <td class="small">{% for p in n.peers %}<span class="badge {{ p.status }}" title="{{ p.heartbeats }} heartbeats, {{ p.loss_pct }}% loss">{{ p.node_id }} · {{ p.status }}{% if p.loss_pct %} · {{ p.loss_pct }}% loss{% endif %}</span> {% empty %}<span class="muted">—</span>{% endfor %}</td>
+      {% if user.is_staff %}<td>
+        <div class="actions">
+          {% if n.simulated_failure %}
+          <form method="post" action="{% url 'node_action' n.pk 'recover' %}" class="inline">{% csrf_token %}<button class="btn sm">Recover</button></form>
+          {% else %}
+          <form method="post" action="{% url 'node_action' n.pk 'fail' %}" class="inline">{% csrf_token %}<button class="btn sm danger">Simulate crash</button></form>
+          {% endif %}
+          <form method="post" action="{% url 'node_action' n.pk 'toggle' %}" class="inline">{% csrf_token %}<button class="btn sm">{% if n.is_active %}Drain{% else %}Activate{% endif %}</button></form>
+          <form method="post" action="{% url 'node_action' n.pk 'latency' %}" class="inline">{% csrf_token %}<input type="number" name="latency_ms" value="{{ n.latency_ms }}" min="0" max="5000" style="width:76px;padding:3px 6px"><button class="btn sm">latency</button></form>
+          <form method="post" action="{% url 'node_action' n.pk 'remove' %}" class="inline" data-confirm="Remove {{ n.node_id }} from the cluster?">{% csrf_token %}<button class="btn sm danger">Remove</button></form>
+        </div>
+      </td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="10" class="muted">No storage nodes registered.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+{% if user.is_staff %}
+<div class="card">
+  <h2>Add a storage node</h2>
+  <p class="muted small">Start a node anywhere on the network: <code>python -m storage_node --node-id node-d --port 9104 --advertise-host &lt;ip&gt; --peers &lt;ip&gt;:10101</code> — then register it here. New chunks are placed on it immediately (consistent hashing moves only ~1/N of the key space).</p>
+  <form method="post" action="{% url 'node_add' %}" class="row">{% csrf_token %}
+    <div><label>Node id</label><input type="text" name="node_id" placeholder="node-d" required></div>
+    <div><label>Host / IP</label><input type="text" name="host" placeholder="192.168.1.104" required></div>
+    <div><label>TCP port</label><input type="number" name="port" placeholder="9104" required></div>
+    <div><label>UDP port</label><input type="number" name="udp_port" placeholder="10104"></div>
+    <div><label>HTTP port</label><input type="number" name="http_port" placeholder="9304"></div>
+    <button class="btn primary">Add node</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const d = {{ rtt_chart|safe }};
+const palette = ["#4f46e5", "#0891b2", "#d97706", "#16a34a", "#db2777", "#7c3aed"];
+new Chart(document.getElementById("rtt"), {
+  type: "line",
+  data: { labels: d.labels, datasets: Object.entries(d.series).map(([k, v], i) => ({ label: k, data: v, borderColor: palette[i % 6], backgroundColor: palette[i % 6], spanGaps: false, tension: .25, pointRadius: 1.5 })) },
+  options: { scales: { y: { beginAtZero: true, title: { display: true, text: "ms" } }, x: { title: { display: true, text: "probe (latest = 0)" } } } }
+});
+</script>
+{% endblock %}
