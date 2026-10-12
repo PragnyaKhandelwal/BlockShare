@@ -53,3 +53,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t blockshare:ci .
+
+  deploy:
+    name: Deploy to Render
+    needs: [contracts, backend, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_URL secret is not set - skipping deployment"
+            exit 0
+          fi
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo
+          echo "Render deploy triggered for $GITHUB_SHA"
