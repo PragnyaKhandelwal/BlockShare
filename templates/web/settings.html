@@ -4,22 +4,22 @@
 <div class="page-head"><div><h1>Control panel</h1><div class="muted">System mode, storage policy and cluster maintenance.</div></div></div>
 
 <div class="card">
-  <h2>System mode — one-click coordination switch</h2>
+  <h2>Coordination mode</h2>
   <div class="toggle-panel">
     <div class="mode-card conventional {% if not config.blockchain_enabled %}active{% endif %}">
-      <h3>◉ Conventional</h3>
-      <p class="small">CONTROL: <strong>Django</strong>. Ownership, permissions, versions and chunk locations are managed in the Django database.<br>Centralized coordination + distributed storage.</p>
+      <div class="tag">Mode A</div><h3>Conventional</h3>
+      <p class="small">The Django server is the coordinator. Ownership, permissions, versions and chunk locations live in its database.</p>
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="mode_off">
         <button class="btn conv" {% if not config.blockchain_enabled %}disabled{% endif %}>{% if config.blockchain_enabled %}Switch to Conventional{% else %}Active{% endif %}</button></form>
     </div>
     <div class="mode-card blockchain {% if config.blockchain_enabled %}active{% endif %}">
-      <h3>⛓ Blockchain</h3>
-      <p class="small">CONTROL: <strong>Smart contracts</strong>. FileRegistry / FileSharing hold ownership, grants and the version chain (Merkle roots). Users sign with their wallets.<br>Decentralized coordination + distributed storage.</p>
+      <div class="tag">Mode B</div><h3>Blockchain</h3>
+      <p class="small">The <code>FileRegistry</code> and <code>FileSharing</code> contracts are the coordinator. Users sign ownership and sharing changes with their own wallets.</p>
       <form method="post" data-confirm="Enable Blockchain mode? Existing files will be anchored on-chain (one transaction per change).">{% csrf_token %}<input type="hidden" name="action" value="mode_on">
         <button class="btn chain" {% if config.blockchain_enabled or not chain_ok %}disabled{% endif %}>{% if config.blockchain_enabled %}Active{% elif chain_ok %}Switch to Blockchain{% else %}Chain unreachable{% endif %}</button></form>
     </div>
   </div>
-  <p class="muted small" style="margin-bottom:0">Storage nodes, chunking, replication and transfers are identical in both modes — only the control plane changes. {% if config.mode_changed_at %}Last switch: {{ config.mode_changed_at }}.{% endif %}</p>
+  <p class="muted small" style="margin:14px 0 0">Storage nodes, chunking, replication and transfers are identical in both modes — only the control plane changes. {% if config.mode_changed_at %}Last switch: {{ config.mode_changed_at }}.{% endif %}</p>
 </div>
 
 <div class="grid g2">
@@ -35,9 +35,9 @@
   <div class="card">
     <h2>Maintenance</h2>
     <div class="actions">
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="repair"><button class="btn">🛠 Repair (restore R replicas)</button></form>
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="gc"><button class="btn">🧹 Garbage-collect orphans</button></form>
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="sync_chain"><button class="btn" {% if not chain_ok %}disabled{% endif %}>⛓ Sync chain state</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="repair"><button class="btn">Repair replicas</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="gc"><button class="btn">Remove orphaned chunks</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="sync_chain"><button class="btn" {% if not chain_ok %}disabled{% endif %}>Sync chain state</button></form>
       <form method="post" data-confirm="Deploy fresh contracts and re-anchor everything?">{% csrf_token %}<input type="hidden" name="action" value="redeploy"><button class="btn danger" {% if not chain_ok %}disabled{% endif %}>Redeploy contracts</button></form>
     </div>
     <p class="muted small">Repair is anti-entropy: every referenced chunk is checked on its replicas (BSP HAS) and copied to new nodes until it has R healthy copies again.</p>

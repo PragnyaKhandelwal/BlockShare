@@ -1,0 +1,146 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlockShare — distributed file sharing with switchable coordination</title>
+  <meta name="description" content="BlockShare splits files into chunks across a cluster of storage nodes. Ownership and access are coordinated by Django or by Ethereum smart contracts.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+</head>
+<body class="landing">
+{% include "partials/icons.html" %}
+<header class="site-nav">
+  <a class="brand" href="{% url 'home' %}" style="padding:0"><svg><use href="#logo"/></svg>BlockShare</a>
+  <nav>
+    <a class="hide-sm" href="#how">How it works</a>
+    <a class="hide-sm" href="#modes">Modes</a>
+    <a class="hide-sm" href="#project">Project</a>
+    <a class="hide-sm" href="https://github.com/PragnyaKhandelwal/BlockShare" target="_blank" rel="noopener">GitHub</a>
+    <a class="btn primary" href="{% url 'login' %}" style="color:#fff">Sign in</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <div class="eyebrow">Distributed storage · Smart contracts · Django</div>
+      <h1>File sharing where the data is spread out, and so is the trust.</h1>
+      <p class="lead">BlockShare splits every upload into chunks and replicates them across a cluster of storage nodes. Ownership, sharing and version history are handled by the Django server — or, with one switch, by smart contracts on an Ethereum chain.</p>
+      <div class="actions">
+        <a class="btn primary" href="{% url 'login' %}">Open the app</a>
+        <a class="btn" href="https://github.com/PragnyaKhandelwal/BlockShare" target="_blank" rel="noopener"><svg class="ic sm"><use href="#i-github"/></svg>Source code</a>
+      </div>
+      <p class="small muted" style="margin-top:18px">Demo login: <code>alice</code> / <code>blockshare123</code></p>
+    </div>
+    <div class="diagram" aria-label="System diagram">
+      <svg viewBox="0 0 460 300" width="100%" role="img">
+        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#98a2b3"/></marker></defs>
+        <rect x="150" y="12" width="160" height="40" rx="7" fill="#fff" stroke="#d0d5dd"/>
+        <text x="230" y="37" text-anchor="middle" font-size="13" font-weight="600" fill="#101828">Web app &amp; REST API</text>
+        <line x1="230" y1="52" x2="230" y2="80" stroke="#98a2b3" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="40" y="84" width="170" height="54" rx="7" fill="#eef4ff" stroke="#c7d7fe"/>
+        <text x="125" y="107" text-anchor="middle" font-size="12.5" font-weight="600" fill="#174a96">Django coordinator</text>
+        <text x="125" y="125" text-anchor="middle" font-size="11" fill="#475467">blockchain off</text>
+        <rect x="250" y="84" width="170" height="54" rx="7" fill="#fef6ee" stroke="#f9dbaf"/>
+        <text x="335" y="107" text-anchor="middle" font-size="12.5" font-weight="600" fill="#93370d">Smart contracts</text>
+        <text x="335" y="125" text-anchor="middle" font-size="11" fill="#475467">blockchain on</text>
+        <line x1="125" y1="138" x2="210" y2="172" stroke="#98a2b3" stroke-width="1.5"/>
+        <line x1="335" y1="138" x2="250" y2="172" stroke="#98a2b3" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <rect x="130" y="172" width="200" height="34" rx="7" fill="#fff" stroke="#d0d5dd"/>
+        <text x="230" y="194" text-anchor="middle" font-size="12" fill="#344054">chunking · hashing · placement</text>
+        <line x1="190" y1="206" x2="90" y2="240" stroke="#98a2b3" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="230" y1="206" x2="230" y2="240" stroke="#98a2b3" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="270" y1="206" x2="370" y2="240" stroke="#98a2b3" stroke-width="1.5" marker-end="url(#arr)"/>
+        <g font-size="12" font-weight="600" fill="#101828" text-anchor="middle">
+          <rect x="40" y="244" width="100" height="40" rx="7" fill="#fff" stroke="#d0d5dd"/><text x="90" y="268">Node A</text>
+          <rect x="180" y="244" width="100" height="40" rx="7" fill="#fff" stroke="#d0d5dd"/><text x="230" y="268">Node B</text>
+          <rect x="320" y="244" width="100" height="40" rx="7" fill="#fff" stroke="#d0d5dd"/><text x="370" y="268">Node C</text>
+        </g>
+        <path d="M140 264H180M280 264H320" stroke="#c7d7fe" stroke-width="2" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+  </div>
+
+  <section class="block" id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="intro">The system keeps a strict split between the <strong>data plane</strong> (where the bytes are) and the <strong>control plane</strong> (who owns them and who may read them). Only the control plane changes between modes.</p>
+      <div class="grid g3">
+        <div class="feature">
+          <h3><svg class="ic"><use href="#i-server"/></svg>Storage network</h3>
+          <p>Files are cut into fixed-size chunks addressed by their SHA-256 hash and placed with consistent hashing.</p>
+          <ul>
+            <li>Custom binary protocol over TCP between server and nodes</li>
+            <li>Replicas are copied node to node in a pipeline</li>
+            <li>Nodes gossip UDP heartbeats to detect failures</li>
+            <li>Lost or corrupted replicas are rebuilt automatically</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <h3><svg class="ic"><use href="#i-link"/></svg>Coordination on-chain</h3>
+          <p>Three Solidity contracts take over when blockchain mode is on.</p>
+          <ul>
+            <li><code>FileRegistry</code> — owners, versions, Merkle roots</li>
+            <li><code>FileSharing</code> — read / write grants</li>
+            <li><code>NodeRegistry</code> — where the data lives</li>
+            <li>Every user signs with their own wallet</li>
+          </ul>
+        </div>
+        <div class="feature">
+          <h3><svg class="ic"><use href="#i-grid"/></svg>Web application</h3>
+          <p>A Django app ties it together for end users and administrators.</p>
+          <ul>
+            <li>Upload, share, version and verify files</li>
+            <li>Live view of nodes, transfers and the chain</li>
+            <li>REST API with token auth and OpenAPI docs</li>
+            <li>Admin control panel with the mode switch</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="modes">
+    <div class="wrap">
+      <h2>Two ways to coordinate the same cluster</h2>
+      <p class="intro">Switching modes moves the authority over files from the Django database to the contracts (and back). Existing files are re-anchored on-chain when the switch happens.</p>
+      <div class="card tight">
+        <div class="table-wrap"><table>
+          <thead><tr><th></th><th>Conventional mode</th><th>Blockchain mode</th></tr></thead>
+          <tbody>
+            <tr><td>File data</td><td>Chunked and replicated on the nodes</td><td>Chunked and replicated on the nodes</td></tr>
+            <tr><td>Ownership</td><td>Django database</td><td><code>FileRegistry</code> contract</td></tr>
+            <tr><td>Access control</td><td>Django database</td><td><code>FileSharing</code> contract</td></tr>
+            <tr><td>Version history</td><td>Django database</td><td>On-chain version chain with Merkle roots</td></tr>
+            <tr><td>Integrity check</td><td>Hash stored by the server</td><td><code>verifyRoot</code> and per-chunk Merkle proofs</td></tr>
+            <tr><td>If the web server is down</td><td>Files unreachable</td><td>CLI reads the chain and fetches chunks directly</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="project">
+    <div class="wrap">
+      <h2>About the project</h2>
+      <p class="intro">BlockShare was built as a project-based learning assignment in the 5th semester of B.Tech CSE at Jaypee Institute of Information Technology, Noida, and is submitted for three courses: Blockchain Development, Computer Networks and the Full Stack Development Lab.</p>
+      <div class="grid g3">
+        <div class="feature"><h3>Team</h3><p>Pragnya Khandelwal<br>Pratishtha Singh<br>Ashu Gupta</p><p class="small muted">Batch F-8</p></div>
+        <div class="feature"><h3>Built with</h3><p>Python, Django, Django REST Framework, Solidity, Hardhat, web3.py, asyncio sockets, PostgreSQL / SQLite, Docker.</p></div>
+        <div class="feature"><h3>Read more</h3><p><a href="https://github.com/PragnyaKhandelwal/BlockShare#readme" target="_blank" rel="noopener">README</a> · <a href="https://github.com/PragnyaKhandelwal/BlockShare/tree/main/docs" target="_blank" rel="noopener">Course reports</a> · <a href="{% url 'api-docs' %}">API reference</a></p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>BlockShare · JIIT Noida · 2026</span>
+    <span><a href="https://github.com/PragnyaKhandelwal/BlockShare" target="_blank" rel="noopener">GitHub</a> · MIT licence</span>
+  </div>
+</footer>
+</body>
+</html>

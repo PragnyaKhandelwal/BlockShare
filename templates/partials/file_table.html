@@ -12,7 +12,7 @@
       <td>v{{ f.latest_version }}</td>
       <td>{{ f.owner.username }}</td>
       <td><span class="badge {{ perm }}">{{ perm }}</span></td>
-      <td>{% if f.on_chain %}<span class="badge blockchain">⛓ anchored</span>{% else %}<span class="badge conventional">Django</span>{% endif %}</td>
+      <td>{% if f.on_chain %}<span class="badge blockchain">on-chain</span>{% else %}<span class="badge conventional">Django</span>{% endif %}</td>
       <td class="muted">{{ f.updated_at|naturaltime }}</td>
     </tr>
     {% endwith %}

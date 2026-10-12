@@ -3,25 +3,25 @@
 {% block content %}
 <div class="page-head">
   <div><h1>Dashboard</h1><div class="muted">One storage service — data physically spread across {{ nodes|length }} network node{{ nodes|length|pluralize }}.</div></div>
-  <div class="actions"><a class="btn primary" href="{% url 'upload' %}">⇪ Upload file</a></div>
+  <div class="actions"><a class="btn primary" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-upload"/></svg>Upload file</a></div>
 </div>
 
 <div class="grid g4" style="margin-bottom:18px">
   <div class="stat"><div class="label">My files</div><div class="value">{{ owned_count }}</div><div class="hint">{{ shared_count }} shared with me</div></div>
   <div class="stat"><div class="label">Storage nodes</div><div class="value">{{ nodes_up }}/{{ nodes|length }}</div><div class="hint">up / total</div></div>
   <div class="stat"><div class="label">Cluster data</div><div class="value">{{ stored_bytes|filesizeformat }}</div><div class="hint">incl. R={{ system.replication_factor }} replicas</div></div>
-  <div class="stat"><div class="label">Coordinator</div><div class="value" style="font-size:18px">{% if system.blockchain_enabled %}⛓ Smart contracts{% else %}◉ Django{% endif %}</div><div class="hint">{% if coordinator %}{{ coordinator.source }}{% else %}unavailable{% endif %}</div></div>
+  <div class="stat"><div class="label">Coordinator</div><div class="value text">{% if system.blockchain_enabled %}Smart contracts{% else %}Django{% endif %}</div><div class="hint">{% if coordinator %}{{ coordinator.source }}{% else %}unavailable{% endif %}</div></div>
 </div>
 
 <div class="grid g2">
   <div class="card">
     <h2>How your files are handled right now</h2>
     {% if system.blockchain_enabled %}
-    <div class="callout chain">
+    <div class="note chain">
       <strong>Decentralized coordination + distributed storage.</strong> Ownership, sharing permissions and the version history of every file live in the <em>FileRegistry</em> and <em>FileSharing</em> smart contracts. Your wallet signs each change; access checks are answered by the chain.
     </div>
     {% else %}
-    <div class="callout conv">
+    <div class="note conv">
       <strong>Centralized coordination + distributed storage.</strong> Django and its database decide who owns a file and who may access it. The file bytes are still chunked and spread over the storage nodes.
     </div>
     {% endif %}
@@ -67,7 +67,7 @@
 const d = {{ chart|safe }};
 new Chart(document.getElementById("nodeChart"), {
   type: "bar",
-  data: { labels: d.labels, datasets: [{ label: "MB stored", data: d.bytes.map(b => +(b / 1048576).toFixed(2)), backgroundColor: "#6366f1", borderRadius: 6 }] },
+  data: { labels: d.labels, datasets: [{ label: "MB stored", data: d.bytes.map(b => +(b / 1048576).toFixed(2)), backgroundColor: "#1f5fbf", borderRadius: 4, maxBarThickness: 56 }] },
   options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "MB" } } } }
 });
 </script>

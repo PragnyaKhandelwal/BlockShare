@@ -75,7 +75,7 @@ sequenceDiagram
     <tbody>
       <tr><td>File storage</td><td>Distributed (chunks on nodes)</td><td>Distributed (chunks on nodes)</td></tr>
       <tr><td>File transfer</td><td>Parallel TCP, replication pipeline</td><td>Parallel TCP, replication pipeline</td></tr>
-      <tr><td>Replication / node-failure recovery</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Replication / node-failure recovery</td><td>Yes</td><td>Yes</td></tr>
       <tr><td>Ownership</td><td>Django DB</td><td><code>FileRegistry</code> (msg.sender = owner)</td></tr>
       <tr><td>Permissions</td><td>Django DB</td><td><code>FileSharing</code> smart contract</td></tr>
       <tr><td>File history</td><td>Django DB</td><td>On-chain version chain (Merkle roots)</td></tr>

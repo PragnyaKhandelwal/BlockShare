@@ -30,7 +30,7 @@ from storage_node.client import NodeClient, NodeError
 from .forms import NodeForm, RegisterForm, SettingsForm, ShareForm, UploadForm, UsernameForm
 
 
-NODE_COLORS = ["#4f46e5", "#0891b2", "#d97706", "#16a34a", "#db2777", "#7c3aed", "#0d9488", "#b45309"]
+NODE_COLORS = ["#1f5fbf", "#0e9384", "#b54708", "#6941c6", "#c11574", "#475467", "#027a48", "#9e77ed"]
 
 
 def _coordinator_or_message(request):
@@ -60,7 +60,14 @@ def register(request):
     return render(request, "registration/register.html", {"form": form})
 
 
-# ---------------------------------------------------------------- dashboard
+# ---------------------------------------------------------------- pages
+
+def home(request):
+    """Public landing page; signed-in users go straight to their dashboard."""
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+    return render(request, "web/landing.html")
+
 
 @login_required
 def dashboard(request):

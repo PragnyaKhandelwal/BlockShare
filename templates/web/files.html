@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><h1>My Files</h1><div class="muted">Listing answered by: <strong>{% if coordinator %}{{ coordinator.source }}{% else %}—{% endif %}</strong>{% if system.blockchain_enabled %} (<code>FileRegistry.filesOf(yourWallet)</code>){% endif %}</div></div>
-  <a class="btn primary" href="{% url 'upload' %}">⇪ Upload</a>
+  <a class="btn primary" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-upload"/></svg>Upload</a>
 </div>
 <div class="card tight">
   {% include "partials/file_table.html" with rows=rows empty="You don't own any files yet." %}

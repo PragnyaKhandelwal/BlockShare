@@ -9,7 +9,7 @@
     <td>v{{ v.number }}</td><td>{{ v.size|filesizeformat }}</td><td>{{ v.chunk_count }}</td>
     <td class="mono small">{{ v.merkle_root|slice:":20" }}…</td>
     <td>{{ v.author.username|default:"—" }}</td>
-    <td>{% if v.tx_hash %}<span class="badge blockchain" title="{{ v.tx_hash }}">⛓ tx {{ v.tx_hash|slice:":10" }}…</span>{% else %}<span class="badge conventional">DB</span>{% endif %}</td>
+    <td>{% if v.tx_hash %}<span class="badge blockchain" title="{{ v.tx_hash }}">tx {{ v.tx_hash|slice:":10" }}…</span>{% else %}<span class="badge conventional">DB</span>{% endif %}</td>
     <td class="muted">{{ v.created_at|naturaltime }}</td>
   </tr>{% empty %}<tr><td colspan="8" class="muted">No versions yet.</td></tr>{% endfor %}</tbody>
 </table></div></div>

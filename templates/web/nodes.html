@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><h1>Storage nodes</h1><div class="muted">Data plane: each node speaks <strong>BSP/1 over TCP</strong> for chunks, <strong>UDP heartbeats</strong> (gossip) with its peers and a small <strong>HTTP/1.1</strong> status endpoint.</div></div>
-  <a class="btn" href="?refresh=1">⟳ Probe now</a>
+  <a class="btn" href="?refresh=1"><svg class="ic sm"><use href="#i-refresh"/></svg>Probe now</a>
 </div>
 
 <div class="grid g2">
@@ -11,12 +11,12 @@
     <h2>Topology</h2>
     <svg viewBox="0 0 520 380" style="width:100%;max-height:380px">
       {% for t in topology %}
-        <line x1="260" y1="190" x2="{{ t.x }}" y2="{{ t.y }}" stroke="{% if t.node.is_up %}#6366f1{% else %}#ef4444{% endif %}" stroke-width="2" {% if not t.node.is_up %}stroke-dasharray="6 5"{% endif %}/>
+        <line x1="260" y1="190" x2="{{ t.x }}" y2="{{ t.y }}" stroke="{% if t.node.is_up %}#1f5fbf{% else %}#ef4444{% endif %}" stroke-width="2" {% if not t.node.is_up %}stroke-dasharray="6 5"{% endif %}/>
       {% endfor %}
       {% for a in topology %}{% for b in topology %}{% if forloop.counter > forloop.parentloop.counter %}
         <line x1="{{ a.x }}" y1="{{ a.y }}" x2="{{ b.x }}" y2="{{ b.y }}" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 4"/>
       {% endif %}{% endfor %}{% endfor %}
-      <circle cx="260" cy="190" r="44" fill="{% if system.blockchain_enabled %}#7c3aed{% else %}#0891b2{% endif %}"/>
+      <circle cx="260" cy="190" r="44" fill="{% if system.blockchain_enabled %}#93370d{% else %}#1f5fbf{% endif %}"/>
       <text x="260" y="186" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">{% if system.blockchain_enabled %}Contracts{% else %}Django{% endif %}</text>
       <text x="260" y="202" text-anchor="middle" fill="#e0e7ff" font-size="10">coordinator</text>
       {% for t in topology %}
@@ -25,7 +25,7 @@
         <text x="{{ t.x }}" y="{{ t.y|add:11 }}" text-anchor="middle" font-size="10" fill="#64708a">{% if t.node.last_rtt_ms %}{{ t.node.last_rtt_ms|floatformat:1 }} ms{% else %}{{ t.node.status }}{% endif %}</text>
       {% endfor %}
     </svg>
-    <div class="legend"><span><i class="swatch" style="background:#6366f1"></i>TCP data path</span><span><i class="swatch" style="background:#cbd5e1"></i>UDP gossip / replication pipeline</span></div>
+    <div class="legend"><span><i class="swatch" style="background:#1f5fbf"></i>TCP data path</span><span><i class="swatch" style="background:#cbd5e1"></i>UDP gossip / replication pipeline</span></div>
   </div>
   <div class="card">
     <h2>TCP round-trip time (BSP PING)</h2>
@@ -39,7 +39,7 @@
   <div class="table-wrap"><table>
     <thead><tr><th>Node</th><th>Endpoint (TCP / UDP / HTTP)</th><th>Status</th><th>RTT</th><th>Chunks</th><th>Data</th><th>Ring share</th><th>Placement</th><th>Gossip view (peers)</th>{% if user.is_staff %}<th>Control</th>{% endif %}</tr></thead>
     <tbody>{% for n in nodes %}<tr>
-      <td><strong>{{ n.node_id }}</strong>{% if n.on_chain %}<br><span class="badge blockchain">⛓ NodeRegistry</span>{% endif %}</td>
+      <td><strong>{{ n.node_id }}</strong>{% if n.on_chain %}<br><span class="badge blockchain">in NodeRegistry</span>{% endif %}</td>
       <td class="mono small">{{ n.endpoint }}<br>udp {{ n.udp_endpoint }}{% if n.http_port %}<br>http :{{ n.http_port }}{% endif %}</td>
       <td><span class="badge {{ n.status }}">{{ n.status }}</span>{% if n.simulated_failure %}<br><span class="badge failed">simulated crash</span>{% endif %}{% if n.latency_ms %}<br><span class="badge unknown">+{{ n.latency_ms }} ms</span>{% endif %}<br><span class="muted small">{% if n.last_seen %}seen {{ n.last_seen|naturaltime }}{% endif %}</span></td>
       <td>{% if n.last_rtt_ms %}{{ n.last_rtt_ms|floatformat:2 }} ms{% else %}—{% endif %}</td>
@@ -83,7 +83,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const d = {{ rtt_chart|safe }};
-const palette = ["#4f46e5", "#0891b2", "#d97706", "#16a34a", "#db2777", "#7c3aed"];
+const palette = ["#1f5fbf", "#0e9384", "#b54708", "#6941c6", "#c11574", "#475467"];
 new Chart(document.getElementById("rtt"), {
   type: "line",
   data: { labels: d.labels, datasets: Object.entries(d.series).map(([k, v], i) => ({ label: k, data: v, borderColor: palette[i % 6], backgroundColor: palette[i % 6], spanGaps: false, tension: .25, pointRadius: 1.5 })) },

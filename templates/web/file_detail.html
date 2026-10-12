@@ -7,20 +7,20 @@
     <div class="actions">
       <span class="mono muted">{{ file.short_id }}</span>
       <span class="badge {{ perm }}">your access: {{ perm }}</span>
-      {% if file.on_chain %}<span class="badge blockchain">⛓ anchored on-chain</span>{% endif %}
+      {% if file.on_chain %}<span class="badge blockchain">anchored on-chain</span>{% endif %}
       <span class="muted small">created under {{ file.coordinator }} mode · {{ file.created_at|naturaltime }}</span>
     </div>
   </div>
   <div class="actions">
-    <a class="btn primary" href="{% url 'file_download' file.pk %}?v={{ version.number }}">⇩ Download v{{ version.number }}</a>
-    <form method="post" action="{% url 'file_verify' file.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}"><button class="btn">✔ Verify integrity</button></form>
+    <a class="btn primary" href="{% url 'file_download' file.pk %}?v={{ version.number }}"><svg class="ic sm"><use href="#i-download"/></svg>Download v{{ version.number }}</a>
+    <form method="post" action="{% url 'file_verify' file.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}"><button class="btn"><svg class="ic sm"><use href="#i-check"/></svg>Verify integrity</button></form>
   </div>
 </div>
 
 <div class="grid g2">
   <div class="card">
     <h2>Control plane — who owns it, who can access it</h2>
-    <div class="callout {% if coordinator.mode == 'blockchain' %}chain{% else %}conv{% endif %}" style="margin-bottom:12px">
+    <div class="note {% if coordinator.mode == 'blockchain' %}chain{% else %}conv{% endif %}" style="margin-bottom:12px">
       Answered by <strong>{{ state.source }}</strong>{% if state.error %} — <span style="color:var(--bad)">{{ state.error }}</span>{% endif %}
     </div>
     <div class="kv">
@@ -75,7 +75,7 @@
     {% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}">
     <div><label>Fault injection · chunk</label><select name="sha256">{% for row in chunk_rows %}<option value="{{ row.chunk.sha256 }}">#{{ row.chunk.index }} {{ row.chunk.sha256|slice:":12" }}…</option>{% endfor %}</select></div>
     <div><label>on node</label><select name="node">{% for n in node_ids %}<option>{{ n }}</option>{% endfor %}</select></div>
-    <button class="btn danger">☠ Corrupt replica</button>
+    <button class="btn danger"><svg class="ic sm"><use href="#i-alert"/></svg>Corrupt replica</button>
   </form>
   <p class="muted small">Admin-only demo: flips bits of a stored replica. Verify detects it (Merkle root mismatch); downloads still succeed from a healthy replica and repair the bad one.</p>
   {% endif %}

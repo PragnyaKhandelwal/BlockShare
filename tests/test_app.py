@@ -158,6 +158,12 @@ class ConventionalModeTests(BaseCase):
         finally:
             NodeClient(victim.tcp_endpoint, CLUSTER_KEY).admin(offline=False)
 
+    def test_public_landing_page(self):
+        r = self.client.get("/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Two ways to coordinate the same cluster")
+        self.assertEqual(self.client.get("/dashboard/").status_code, 302)  # requires login
+
     def test_rest_api_and_pages(self):
         token = Token.objects.create(user=self.alice)
         api = APIClient()
@@ -173,7 +179,8 @@ class ConventionalModeTests(BaseCase):
         self.assertEqual(api.get("/api/files/").json()[0]["id"], fid)
 
         self.client.force_login(self.alice)
-        for url in ["/", "/files/", f"/files/{fid}/", "/upload/", "/shared-with-me/", "/versions/",
+        self.assertEqual(self.client.get("/").status_code, 302)  # signed in -> dashboard
+        for url in ["/dashboard/", "/files/", f"/files/{fid}/", "/upload/", "/shared-with-me/", "/versions/",
                     "/transfers/", "/nodes/", "/architecture/", "/api/docs/"]:
             self.assertEqual(self.client.get(url).status_code, 200, url)
 

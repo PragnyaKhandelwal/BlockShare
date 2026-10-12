@@ -7,7 +7,7 @@
     <form id="upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload' %}" data-mode="{{ system.mode }}">
       {% csrf_token %}
       <div id="dropzone" class="dropzone">
-        <div style="font-size:34px">⇪</div>
+        <svg class="ic"><use href="#i-upload"/></svg>
         <div id="drop-label"><strong>Drop a file here</strong> or click to choose</div>
         <input type="file" name="file" hidden>
       </div>

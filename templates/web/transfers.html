@@ -20,7 +20,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const d = {{ chart|safe }};
-const colors = { upload: "#4f46e5", download: "#0891b2", verify: "#d97706", repair: "#16a34a" };
+const colors = { upload: "#1f5fbf", download: "#0e9384", verify: "#b54708", repair: "#6941c6" };
 new Chart(document.getElementById("tp"), {
   type: "bar",
   data: { labels: d.labels, datasets: [{ label: "Mbit/s", data: d.mbps, backgroundColor: d.dir.map(x => colors[x] || "#64748b"), borderRadius: 4 }] },

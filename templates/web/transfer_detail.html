@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head"><div><h1>Transfer #{{ t.pk }} · {{ t.direction }}</h1>
   <div class="muted">{{ t.file.name|default:"(file removed)" }}{% if t.version_number %} v{{ t.version_number }}{% endif %} · {{ t.user.username|default:"system" }} · {{ t.created_at }}</div></div>
-  <a class="btn" href="{% url 'transfers' %}">← All transfers</a>
+  <a class="btn" href="{% url 'transfers' %}"><svg class="ic sm"><use href="#i-arrow-left"/></svg>All transfers</a>
 </div>
 <div class="grid g4" style="margin-bottom:18px">
   <div class="stat"><div class="label">Bytes</div><div class="value">{{ t.bytes|filesizeformat }}</div></div>
