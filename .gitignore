@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# runtime data (database, storage-node chunks, static build)
+var/
+*.sqlite3
+.env
+
+# Node / Hardhat
+node_modules/
+blockchain/artifacts/
+blockchain/cache/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
