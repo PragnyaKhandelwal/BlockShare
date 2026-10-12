@@ -1,0 +1,20 @@
+{
+  "name": "blockshare-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Solidity smart contracts for BlockShare's decentralized coordination layer",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node --hostname 0.0.0.0 --port 8545",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "export-abi": "hardhat compile && node scripts/export-abi.js"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "2.0.8",
+    "@nomicfoundation/hardhat-ethers": "3.0.8",
+    "chai": "4.5.0",
+    "ethers": "6.13.4",
+    "hardhat": "2.22.17"
+  }
+}
