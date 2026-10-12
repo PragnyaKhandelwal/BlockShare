@@ -1,0 +1,24 @@
+# Render Blueprint - one-click deployment of the all-in-one image
+# (Anvil blockchain + 3 storage nodes + monitor + Django in one container).
+services:
+  - type: web
+    name: blockshare
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CLUSTER_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DEBUG
+        value: "false"
+      - key: DEMO_SEED
+        value: "1"
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      - key: WEB_THREADS
+        value: "8"

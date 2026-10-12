@@ -1,0 +1,97 @@
+# Multi-host deployment of BlockShare: every component is its own container
+# with its own IP address on a private network - the "PC 1 -> Django,
+# PC 2 -> Node A, ..." setup from the project proposal, on one laptop.
+#
+#   docker compose up --build        ->  http://localhost:8000
+#
+x-app: &app
+  build: .
+  image: blockshare:latest
+  restart: unless-stopped
+  environment: &env
+    DEBUG: "false"
+    SECRET_KEY: ${SECRET_KEY:-compose-demo-secret-change-me}
+    ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+    CLUSTER_KEY: ${CLUSTER_KEY:-compose-cluster-key}
+    DATABASE_URL: postgres://blockshare:blockshare@db:5432/blockshare
+    BLOCKCHAIN_RPC_URL: http://chain:8545
+    BLOCKSHARE_NODES: node-a@172.28.0.11:9000/10000/9300,node-b@172.28.0.12:9000/10000/9300,node-c@172.28.0.13:9000/10000/9300
+    SECURE_COOKIES: "false"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: blockshare
+      POSTGRES_PASSWORD: blockshare
+      POSTGRES_DB: blockshare
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockshare"]
+      interval: 5s
+      retries: 10
+    networks: { blocknet: { ipv4_address: 172.28.0.5 } }
+
+  chain:
+    <<: *app
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 31337 --state /chain/state.json
+    volumes: [chaindata:/chain]
+    ports: ["8545:8545"]
+    healthcheck: { disable: true }
+    networks: { blocknet: { ipv4_address: 172.28.0.6 } }
+
+  node-a: &node
+    <<: *app
+    command: python -m storage_node --node-id node-a --port 9000 --http-port 9300 --advertise-host 172.28.0.11 --peers 172.28.0.12:10000,172.28.0.13:10000 --data-dir /data/nodes
+    environment: { CLUSTER_KEY: "${CLUSTER_KEY:-compose-cluster-key}" }
+    healthcheck: { disable: true }
+    volumes: [node-a:/data]
+    ports: ["9301:9300"]
+    networks: { blocknet: { ipv4_address: 172.28.0.11 } }
+
+  node-b:
+    <<: *node
+    command: python -m storage_node --node-id node-b --port 9000 --http-port 9300 --advertise-host 172.28.0.12 --peers 172.28.0.11:10000 --data-dir /data/nodes
+    volumes: [node-b:/data]
+    ports: ["9302:9300"]
+    networks: { blocknet: { ipv4_address: 172.28.0.12 } }
+
+  node-c:
+    <<: *node
+    command: python -m storage_node --node-id node-c --port 9000 --http-port 9300 --advertise-host 172.28.0.13 --peers 172.28.0.11:10000 --data-dir /data/nodes
+    volumes: [node-c:/data]
+    ports: ["9303:9300"]
+    networks: { blocknet: { ipv4_address: 172.28.0.13 } }
+
+  web:
+    <<: *app
+    command: /app/deploy/start-web.sh
+    depends_on:
+      db: { condition: service_healthy }
+      chain: { condition: service_started }
+      node-a: { condition: service_started }
+      node-b: { condition: service_started }
+      node-c: { condition: service_started }
+    ports: ["8000:8000"]
+    networks: { blocknet: { ipv4_address: 172.28.0.2 } }
+
+  monitor:
+    <<: *app
+    command: python manage.py run_monitor --interval 5
+    healthcheck: { disable: true }
+    depends_on:
+      web: { condition: service_healthy }
+    networks: { blocknet: { ipv4_address: 172.28.0.3 } }
+
+networks:
+  blocknet:
+    driver: bridge
+    ipam:
+      config: [{ subnet: 172.28.0.0/24 }]
+
+volumes:
+  pgdata:
+  chaindata:
+  node-a:
+  node-b:
+  node-c:

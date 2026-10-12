@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  contracts:
+    name: Smart contracts (Hardhat)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: blockchain
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx hardhat test
+      - name: ABI export is up to date
+        run: |
+          node scripts/export-abi.js
+          git diff --exit-code -- ../coordination/contracts || (echo "Run 'npm run export-abi' and commit the result" && exit 1)
+
+  backend:
+    name: Django + networking + blockchain integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: pip install -r requirements.txt
+      - name: Start a local blockchain
+        working-directory: blockchain
+        run: |
+          npm install --no-audit --no-fund
+          npx hardhat node --hostname 127.0.0.1 --port 8545 > /tmp/hardhat.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' http://127.0.0.1:8545 && break; sleep 1; done
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py test tests -v 2
+        env:
+          BLOCKSHARE_TEST_RPC: http://127.0.0.1:8545
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t blockshare:ci .

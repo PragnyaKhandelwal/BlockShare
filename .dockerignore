@@ -1,0 +1,8 @@
+.git
+.venv
+var
+**/__pycache__
+blockchain/node_modules
+blockchain/artifacts
+blockchain/cache
+docs
