@@ -21,12 +21,15 @@ import time
 from collections import Counter
 
 from .protocol import (
-    AUTHENTICATED_OPS, EMPTY_KEY, FLAG_FORWARD, RESPONSE_BIT, Frame, Op, ProtocolError, Status,
+    AUTHENTICATED_OPS, EMPTY_KEY, FLAG_FORWARD, MAGIC, RESPONSE_BIT, Frame, Op, ProtocolError, Status,
     check_payload, encode, pack_forward, parse_endpoint, read_frame, sha256, unpack_forward, verify_auth,
 )
 from .store import ChunkStore
 
 log = logging.getLogger("storage_node")
+
+# first four bytes of an HTTP/1.x request (health checks and port scanners)
+HTTP_PREFIXES = {b"GET ", b"HEAD", b"POST", b"PUT ", b"DELE", b"OPTI", b"PATC", b"CONN", b"TRAC", b"PRI "}
 
 
 class PeerInfo:
@@ -97,6 +100,8 @@ class StorageNode:
         self.udp_transport = None
         self._servers: list = []
         self._tasks: list = []
+        self._last_foreign_log = 0.0
+        self._foreign_logged = 0
 
     @property
     def tcp_endpoint(self) -> str:
@@ -131,7 +136,11 @@ class StorageNode:
         try:
             while True:
                 try:
-                    frame = await read_frame(reader)
+                    magic = await reader.readexactly(len(MAGIC))
+                    if magic != MAGIC:
+                        await self._reject_foreign(magic, writer)
+                        break
+                    frame = await read_frame(reader, magic)
                 except asyncio.IncompleteReadError:
                     break
                 self.metrics["bytes_in"] += len(frame.payload)
@@ -147,6 +156,31 @@ class StorageNode:
             pass
         finally:
             writer.close()
+
+    async def _reject_foreign(self, first: bytes, writer: asyncio.StreamWriter):
+        """Someone connected with a different protocol (typically an HTTP health probe or port scan).
+
+        HTTP clients get a short 400 response explaining what this port is; the event is
+        counted and logged at most once a minute so probes don't flood the logs.
+        """
+        self.metrics["foreign_connections"] += 1
+        is_http = first in HTTP_PREFIXES
+        if is_http:
+            body = (f"This port speaks BSP/1 (BlockShare Storage Protocol), not HTTP. "
+                    f"Node status is served over HTTP on port {self.http_port or 'n/a'}.\n").encode()
+            writer.write(b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n"
+                         + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
+            try:
+                await writer.drain()
+            except ConnectionError:
+                pass
+        now = time.time()
+        if now - self._last_foreign_log >= 60:
+            log.info("[%s] rejected %d non-BSP connection(s) in the last minute (latest started with %r%s)",
+                     self.node_id, self.metrics["foreign_connections"] - self._foreign_logged, first,
+                     ", an HTTP request" if is_http else "")
+            self._last_foreign_log = now
+            self._foreign_logged = self.metrics["foreign_connections"]
 
     def _reply(self, req: Frame, status: Status = Status.OK, payload: bytes = b"", key: bytes | None = None) -> Frame:
         return Frame(opcode=req.opcode | RESPONSE_BIT, key=key if key is not None else req.key,

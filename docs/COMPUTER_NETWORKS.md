@@ -52,6 +52,7 @@ Design points worth discussing:
 * **Two levels of integrity** — CRC-32 catches corruption in transit; SHA-256(payload) == key catches anything else end-to-end.
 * **Authentication** — mutating ops (`PUT, DELETE, CORRUPT, ADMIN`) need a valid HMAC tag; reads are open, so knowing a chunk's hash works as a capability (like IPFS).
 * **Nagle disabled** (`TCP_NODELAY`) on the client to keep small control messages snappy.
+* **Foreign traffic** — the node reads the 4-byte magic before anything else. Anything that isn't `BSP1` is dropped; if it looks like an HTTP request (cloud load balancers and port scanners probe every open port with `HEAD /`), the node answers `400 Bad Request` with a one-line explanation, counts it in `foreign_connections`, and logs a summary at most once a minute.
 
 ### Replication pipeline (chain replication)
 

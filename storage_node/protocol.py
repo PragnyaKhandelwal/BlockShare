@@ -184,8 +184,9 @@ def recv_frame(sock: socket.socket) -> Frame:
 
 # ------------------------------------------------------------ asyncio I/O
 
-async def read_frame(reader) -> Frame:
-    frame = decode_header(await reader.readexactly(HEADER_SIZE))
+async def read_frame(reader, prefix: bytes = b"") -> Frame:
+    """Read one frame; `prefix` holds header bytes the caller has already consumed."""
+    frame = decode_header(prefix + await reader.readexactly(HEADER_SIZE - len(prefix)))
     frame.payload = await reader.readexactly(frame._length) if frame._length else b""  # type: ignore[attr-defined]
     return frame
 

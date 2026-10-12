@@ -122,6 +122,19 @@ class ClusterTests(unittest.TestCase):
             time.sleep(0.2)
         self.assertEqual(sorted(p["node_id"] for p in peers), ["node-b", "node-c"])
 
+    def test_http_probe_on_bsp_port_is_answered_and_ignored(self):
+        """Load balancers / port scanners send HTTP to every open port; the node must cope."""
+        import socket
+
+        host, port = self.eps[0].rsplit(":", 1)
+        with socket.create_connection((host, int(port)), timeout=5) as s:
+            s.sendall(b"HEAD / HTTP/1.1\r\nHost: probe\r\nUser-Agent: Render/1.0\r\n\r\n")
+            reply = s.recv(1024)
+        self.assertTrue(reply.startswith(b"HTTP/1.1 400"))
+        self.assertIn(b"BSP/1", reply)
+        self.assertGreaterEqual(self.client(0).stats()["metrics"].get("foreign_connections", 0), 1)
+        self.assertGreater(self.client(0).ping(), 0)  # still serving BSP
+
     def test_node_counts_operations(self):
         self.client(0).ping()
         metrics = self.client(0).stats()["metrics"]
