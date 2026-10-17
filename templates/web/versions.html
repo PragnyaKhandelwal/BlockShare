@@ -1,16 +1,16 @@
-{% extends "base.html" %}{% load humanize %}
+{% extends "base.html" %}{% load humanize ui %}
 {% block title %}Versions{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Version history</h1><div class="muted">Every version is identified by the Merkle root of its chunks: V1 → V2 → V3 … In Blockchain mode each one is an on-chain <code>VersionAdded</code> event.</div></div></div>
+<div class="page-head"><div><h1>Version History</h1><div class="sub">Every version is identified by the Merkle root of its chunks: V1 → V2 → V3 … In Blockchain mode each one is an on-chain <code>VersionAdded</code> event.</div></div></div>
 <div class="card tight"><div class="table-wrap"><table>
   <thead><tr><th>File</th><th>Version</th><th>Size</th><th>Chunks</th><th>Merkle root</th><th>Author</th><th>Anchored</th><th>When</th></tr></thead>
   <tbody>{% for v in versions %}<tr>
-    <td><a href="{% url 'file_detail' v.file.pk %}?v={{ v.number }}">{{ v.file.name }}</a></td>
-    <td>v{{ v.number }}</td><td>{{ v.size|filesizeformat }}</td><td>{{ v.chunk_count }}</td>
-    <td class="mono small">{{ v.merkle_root|slice:":20" }}…</td>
+    <td><div class="file-cell"><span class="ficon k-{{ v.file.name|file_kind }}">{{ v.file.name|file_ext }}</span><a href="{% url 'file_detail' v.file.pk %}?v={{ v.number }}">{{ v.file.name }}</a></div></td>
+    <td><span class="version-pill">v{{ v.number }}</span></td><td>{{ v.size|filesizeformat }}</td><td>{{ v.chunk_count }}</td>
+    <td class="mono small" data-copy="{{ v.merkle_root }}">{{ v.merkle_root|slice:":20" }}…</td>
     <td>{{ v.author.username|default:"—" }}</td>
     <td>{% if v.tx_hash %}<span class="badge blockchain" title="{{ v.tx_hash }}">tx {{ v.tx_hash|slice:":10" }}…</span>{% else %}<span class="badge conventional">DB</span>{% endif %}</td>
-    <td class="muted">{{ v.created_at|naturaltime }}</td>
-  </tr>{% empty %}<tr><td colspan="8" class="muted">No versions yet.</td></tr>{% endfor %}</tbody>
+    <td class="muted nowrap">{{ v.created_at|naturaltime }}</td>
+  </tr>{% empty %}<tr><td colspan="8">No versions yet.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}

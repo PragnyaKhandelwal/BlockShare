@@ -1,13 +1,16 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import views
+from . import pwa, views
 
 urlpatterns = [
     path("login/", auth_views.LoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("register/", views.register, name="register"),
     path("", views.home, name="home"),
+    path("manifest.webmanifest", pwa.manifest, name="manifest"),
+    path("sw.js", pwa.service_worker, name="service_worker"),
+    path("offline/", pwa.offline, name="offline"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("files/", views.file_list, name="files"),
     path("files/<uuid:pk>/", views.file_detail, name="file_detail"),

@@ -1,25 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Upload{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Upload a file</h1><div class="muted">Max {{ max_mb }} MB on this deployment.</div></div></div>
-<div class="grid g2">
-  <div class="card">
-    <form id="upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload' %}" data-mode="{{ system.mode }}">
-      {% csrf_token %}
-      <div id="dropzone" class="dropzone">
-        <svg class="ic"><use href="#i-upload"/></svg>
-        <div id="drop-label"><strong>Drop a file here</strong> or click to choose</div>
-        <input type="file" name="file" hidden>
+<div class="page-head"><div><h1>Upload Files</h1><div class="sub">Split, distribute and store your files across the network.</div></div></div>
+<div class="grid g-wide">
+  <div>
+    <div class="card">
+      <form id="upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload' %}" data-mode="{{ system.mode }}">
+        {% csrf_token %}
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Choose a file to upload">
+          <div class="drop-icon"><svg class="ic"><use href="#i-cloud-up"/></svg></div>
+          <div id="drop-label"><strong><span class="when-hover">Drag &amp; drop a file here</span><span class="when-touch">Tap to choose a file</span></strong><span class="or when-hover">or</span></div>
+          <button type="button" class="btn primary">Browse Files</button>
+          <div class="hint">Any file type · up to {{ max_mb }} MB · automatically chunked and distributed</div>
+          <input type="file" name="file" hidden>
+        </div>
+        <div class="field" style="margin-top:18px"><label for="upload-comment">Comment <span class="muted" style="font-weight:400">(optional)</span></label><input type="text" id="upload-comment" name="comment" maxlength="200" placeholder="e.g. first draft"></div>
+        <div class="actions" style="justify-content:space-between">
+          <p id="upload-status" class="muted small" style="margin:0" aria-live="polite"></p>
+          <button type="submit" class="btn primary lg"><svg class="ic sm"><use href="#i-upload"/></svg>Start Upload</button>
+        </div>
+        <div class="progress"><div id="progress-bar"></div></div>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Upload Settings</h2>{% if user.is_staff %}<a class="link" href="{% url 'settings' %}">Change<svg class="ic"><use href="#i-chevron-right"/></svg></a>{% else %}<span class="muted small">set by the administrator</span>{% endif %}</div>
+      <div class="settings-chips">
+        <div class="chip-stat"><div class="k">Chunk size</div><div class="v">{{ system.chunk_size|filesizeformat }}</div></div>
+        <div class="chip-stat"><div class="k">Replication factor</div><div class="v">{{ system.replication_factor }} copies</div></div>
+        <div class="chip-stat"><div class="k">Coordinator</div><div class="v">{% if system.blockchain_enabled %}Smart contracts{% else %}Django DB{% endif %}</div></div>
+        <div class="chip-stat"><div class="k">Max upload</div><div class="v">{{ max_mb }} MB</div></div>
       </div>
-      <div class="field" style="margin-top:14px"><label>Comment (optional)</label><input type="text" name="comment" maxlength="200" placeholder="e.g. first draft"></div>
-      <button type="submit" class="btn primary">Upload &amp; distribute</button>
-      <div class="progress"><div id="progress-bar"></div></div>
-      <p id="upload-status" class="muted small"></p>
-    </form>
+    </div>
   </div>
   <div class="card">
     <h2>What happens when you upload</h2>
-    <ol style="padding-left:18px;margin:0">
+    <ol class="timeline">
       <li>The file is split into <strong>{{ system.chunk_size|filesizeformat }}</strong> chunks.</li>
       <li>Each chunk is hashed with <strong>SHA-256</strong> — the hash is its address on the storage nodes (identical chunks are stored once: deduplication).</li>
       <li>A <strong>consistent-hashing ring</strong> picks {{ system.replication_factor }} node(s) per chunk.</li>
@@ -27,7 +42,7 @@
       <li>The chunk hashes form a <strong>Merkle tree</strong>; its root identifies this exact version.</li>
       <li>A manifest (chunk list + locations) is stored on the nodes as well.</li>
       {% if system.blockchain_enabled %}
-      <li><strong>Your wallet signs <code>FileRegistry.registerFile()</code></strong> — the smart contract records you as owner together with the Merkle root.</li>
+      <li class="chain"><strong>Your wallet signs <code>FileRegistry.registerFile()</code></strong> — the smart contract records you as owner together with the Merkle root.</li>
       {% else %}
       <li>Django records ownership and the Merkle root in its database.</li>
       {% endif %}

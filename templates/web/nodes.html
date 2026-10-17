@@ -2,40 +2,71 @@
 {% block title %}Storage Nodes{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Storage nodes</h1><div class="muted">Data plane: each node speaks <strong>BSP/1 over TCP</strong> for chunks, <strong>UDP heartbeats</strong> (gossip) with its peers and a small <strong>HTTP/1.1</strong> status endpoint.</div></div>
-  <a class="btn" href="?refresh=1"><svg class="ic sm"><use href="#i-refresh"/></svg>Probe now</a>
+  <div><h1>Storage Nodes</h1><div class="sub">Monitor storage nodes, their status and performance. Each node speaks <strong>BSP/1 over TCP</strong> for chunks, <strong>UDP heartbeats</strong> (gossip) with its peers and a small <strong>HTTP/1.1</strong> status endpoint.</div></div>
+  <div class="actions">
+    <a class="btn" href="?refresh=1"><svg class="ic sm"><use href="#i-refresh"/></svg>Probe now</a>
+    {% if user.is_staff %}<a class="btn primary" href="#add-node"><svg class="ic sm"><use href="#i-plus"/></svg>Add Node</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid g3">
+  {% for n in nodes %}
+  <div class="card node-card{% if n.status == 'down' %} is-down{% endif %}">
+    <div class="head">
+      <span class="icon-tile {% if n.is_up %}tone-indigo{% elif n.status == 'down' %}tone-red{% else %}tone-amber{% endif %}"><svg class="ic"><use href="#i-server"/></svg></span>
+      <div style="min-width:0"><h3>{{ n.node_id }}</h3><div class="addr"><svg class="ic sm"><use href="#i-link"/></svg>{{ n.endpoint }}</div></div>
+      <span class="badge {{ n.status }}">{% if n.is_up %}Online{% else %}{{ n.status }}{% endif %}</span>
+    </div>
+    <div class="share">
+      <div class="lbl"><span>Ring share</span><span>{{ n.ring_share }}%</span></div>
+      <div class="meter"><i style="width:{{ n.ring_share }}%"></i></div>
+    </div>
+    <div class="metric"><span>Round-trip time</span><span>{% if n.last_rtt_ms %}{{ n.last_rtt_ms|floatformat:2 }} ms{% else %}—{% endif %}</span></div>
+    <div class="metric"><span>Chunks stored</span><span>{{ n.chunk_count }}</span></div>
+    <div class="metric"><span>Data</span><span>{{ n.bytes_used|filesizeformat }}</span></div>
+    <div class="metric"><span>Placement</span><span>{% if n.is_active %}<span class="badge ok">Accepting</span>{% else %}<span class="badge unknown">Drained</span>{% endif %}</span></div>
+    {% if n.simulated_failure or n.latency_ms %}<div class="actions" style="margin-top:8px">{% if n.simulated_failure %}<span class="badge failed">simulated crash</span>{% endif %}{% if n.latency_ms %}<span class="badge unknown">+{{ n.latency_ms }} ms latency</span>{% endif %}</div>{% endif %}
+  </div>
+  {% empty %}
+  <div class="card"><div class="empty-state"><span class="icon-tile tone-indigo"><svg class="ic"><use href="#i-server"/></svg></span>No storage nodes registered.</div></div>
+  {% endfor %}
 </div>
 
 <div class="grid g2">
   <div class="card">
     <h2>Topology</h2>
-    <svg viewBox="0 0 520 380" style="width:100%;max-height:380px">
+    <svg class="topo" viewBox="0 0 520 380" style="width:100%;max-height:380px">
+      <defs>
+        <radialGradient id="topo-core" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4338ca"/></radialGradient>
+        <radialGradient id="topo-chain" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#c084fc"/><stop offset="1" stop-color="#6d28d9"/></radialGradient>
+      </defs>
       {% for t in topology %}
-        <line x1="260" y1="190" x2="{{ t.x }}" y2="{{ t.y }}" stroke="{% if t.node.is_up %}#1f5fbf{% else %}#ef4444{% endif %}" stroke-width="2" {% if not t.node.is_up %}stroke-dasharray="6 5"{% endif %}/>
+        <line x1="260" y1="190" x2="{{ t.x }}" y2="{{ t.y }}" class="{% if t.node.is_up %}link-up{% else %}link-down{% endif %}" stroke-width="2" {% if not t.node.is_up %}stroke-dasharray="6 5"{% endif %}/>
       {% endfor %}
       {% for a in topology %}{% for b in topology %}{% if forloop.counter > forloop.parentloop.counter %}
-        <line x1="{{ a.x }}" y1="{{ a.y }}" x2="{{ b.x }}" y2="{{ b.y }}" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="3 4"/>
+        <line x1="{{ a.x }}" y1="{{ a.y }}" x2="{{ b.x }}" y2="{{ b.y }}" class="mesh" stroke-width="1.2" stroke-dasharray="3 4"/>
       {% endif %}{% endfor %}{% endfor %}
-      <circle cx="260" cy="190" r="44" fill="{% if system.blockchain_enabled %}#93370d{% else %}#1f5fbf{% endif %}"/>
+      <circle cx="260" cy="190" r="56" class="core-ring" stroke-width="1.5" stroke-dasharray="2 4"/>
+      <circle cx="260" cy="190" r="44" class="core{% if system.blockchain_enabled %} chain{% endif %}"/>
       <text x="260" y="186" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">{% if system.blockchain_enabled %}Contracts{% else %}Django{% endif %}</text>
       <text x="260" y="202" text-anchor="middle" fill="#e0e7ff" font-size="10">coordinator</text>
       {% for t in topology %}
-        <circle cx="{{ t.x }}" cy="{{ t.y }}" r="34" fill="#fff" stroke="{% if t.node.is_up %}#16a34a{% elif t.node.status == 'down' %}#dc2626{% else %}#d97706{% endif %}" stroke-width="3"/>
-        <text x="{{ t.x }}" y="{{ t.y|add:-4 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#172033">{{ t.node.node_id }}</text>
-        <text x="{{ t.x }}" y="{{ t.y|add:11 }}" text-anchor="middle" font-size="10" fill="#64708a">{% if t.node.last_rtt_ms %}{{ t.node.last_rtt_ms|floatformat:1 }} ms{% else %}{{ t.node.status }}{% endif %}</text>
+        <circle cx="{{ t.x }}" cy="{{ t.y }}" r="34" class="nd {% if t.node.is_up %}up{% elif t.node.status == 'down' %}down{% else %}unknown{% endif %}"/>
+        <text x="{{ t.x }}" y="{{ t.y|add:-4 }}" text-anchor="middle" font-size="12" font-weight="700" class="t1">{{ t.node.node_id }}</text>
+        <text x="{{ t.x }}" y="{{ t.y|add:11 }}" text-anchor="middle" font-size="10" class="t2">{% if t.node.last_rtt_ms %}{{ t.node.last_rtt_ms|floatformat:1 }} ms{% else %}{{ t.node.status }}{% endif %}</text>
       {% endfor %}
     </svg>
-    <div class="legend"><span><i class="swatch" style="background:#1f5fbf"></i>TCP data path</span><span><i class="swatch" style="background:#cbd5e1"></i>UDP gossip / replication pipeline</span></div>
+    <div class="legend"><span><i class="swatch" style="background:var(--accent)"></i>TCP data path</span><span><i class="swatch" style="background:var(--line-2)"></i>UDP gossip / replication pipeline</span></div>
   </div>
   <div class="card">
     <h2>TCP round-trip time (BSP PING)</h2>
-    <canvas id="rtt" height="200"></canvas>
-    <p class="muted small">Sampled by the monitor every few seconds. Gaps = failed probes. Use “latency” below to emulate a slow link.</p>
+    <div style="position:relative;height:300px"><canvas id="rtt"></canvas></div>
+    <p class="muted small" style="margin:10px 0 0">Sampled by the monitor every few seconds. Gaps = failed probes. Use “latency” below to emulate a slow link.</p>
   </div>
 </div>
 
 <div class="card tight">
-  <h2>Nodes · replication factor R = {{ replication_factor }}</h2>
+  <div class="card-head"><h2>Cluster details · replication factor R = {{ replication_factor }}</h2></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Node</th><th>Endpoint (TCP / UDP / HTTP)</th><th>Status</th><th>RTT</th><th>Chunks</th><th>Data</th><th>Ring share</th><th>Placement</th><th>Gossip view (peers)</th>{% if user.is_staff %}<th>Control</th>{% endif %}</tr></thead>
     <tbody>{% for n in nodes %}<tr>
@@ -60,12 +91,12 @@
           <form method="post" action="{% url 'node_action' n.pk 'remove' %}" class="inline" data-confirm="Remove {{ n.node_id }} from the cluster?">{% csrf_token %}<button class="btn sm danger">Remove</button></form>
         </div>
       </td>{% endif %}
-    </tr>{% empty %}<tr><td colspan="10" class="muted">No storage nodes registered.</td></tr>{% endfor %}</tbody>
+    </tr>{% empty %}<tr><td colspan="10">No storage nodes registered.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
 
 {% if user.is_staff %}
-<div class="card">
+<div class="card" id="add-node">
   <h2>Add a storage node</h2>
   <p class="muted small">Start a node anywhere on the network: <code>python -m storage_node --node-id node-d --port 9104 --advertise-host &lt;ip&gt; --peers &lt;ip&gt;:10101</code> — then register it here. New chunks are placed on it immediately (consistent hashing moves only ~1/N of the key space).</p>
   <form method="post" action="{% url 'node_add' %}" class="row">{% csrf_token %}
@@ -83,11 +114,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const d = {{ rtt_chart|safe }};
-const palette = ["#1f5fbf", "#0e9384", "#b54708", "#6941c6", "#c11574", "#475467"];
-new Chart(document.getElementById("rtt"), {
+BS.chart(document.getElementById("rtt"), () => ({
   type: "line",
-  data: { labels: d.labels, datasets: Object.entries(d.series).map(([k, v], i) => ({ label: k, data: v, borderColor: palette[i % 6], backgroundColor: palette[i % 6], spanGaps: false, tension: .25, pointRadius: 1.5 })) },
-  options: { scales: { y: { beginAtZero: true, title: { display: true, text: "ms" } }, x: { title: { display: true, text: "probe (latest = 0)" } } } }
-});
+  data: { labels: d.labels, datasets: Object.entries(d.series).map(([k, v], i) => {
+    const c = BS.palette[i % BS.palette.length];
+    return { label: k, data: v, borderColor: c, backgroundColor: c + "22", fill: true, spanGaps: false, tension: .35, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2 };
+  }) },
+  options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { position: "bottom" } },
+    scales: { y: { beginAtZero: true, title: { display: true, text: "ms" }, grid: { color: BS.css("--line") } },
+              x: { title: { display: true, text: "probe (latest = 0)" }, grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12 } } } }
+}));
 </script>
 {% endblock %}

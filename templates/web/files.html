@@ -2,10 +2,14 @@
 {% block title %}My Files{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>My Files</h1><div class="muted">Listing answered by: <strong>{% if coordinator %}{{ coordinator.source }}{% else %}—{% endif %}</strong>{% if system.blockchain_enabled %} (<code>FileRegistry.filesOf(yourWallet)</code>){% endif %}</div></div>
-  <a class="btn primary" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-upload"/></svg>Upload</a>
+  <div><h1>My Files</h1><div class="sub">Manage your files, share them with others and access them from anywhere. Listing answered by <strong>{% if coordinator %}{{ coordinator.source }}{% else %}—{% endif %}</strong>{% if system.blockchain_enabled %} (<code>FileRegistry.filesOf(yourWallet)</code>){% endif %}.</div></div>
+  <a class="btn primary" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-plus"/></svg>Upload File</a>
 </div>
 <div class="card tight">
-  {% include "partials/file_table.html" with rows=rows empty="You don't own any files yet." %}
+  <div class="toolbar">
+    {% include "partials/file_tabs.html" with target="files-table" %}
+    <span class="muted small">{{ rows|length }} file{{ rows|length|pluralize }}</span>
+  </div>
+  {% include "partials/file_table.html" with rows=rows table_id="files-table" empty="You don't own any files yet. Upload one to see it chunked across the nodes." %}
 </div>
 {% endblock %}

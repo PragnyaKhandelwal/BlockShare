@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Architecture{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Architecture</h1><div class="muted">A modular distributed file-sharing system with switchable centralized (Django) or decentralized (smart contract) coordination.</div></div></div>
+<div class="page-head"><div><h1>Architecture</h1><div class="sub">A modular distributed file-sharing system with switchable centralized (Django) or decentralized (smart contract) coordination.</div></div></div>
 
 <div class="card">
-  <h2>System overview</h2>
+  <h2>System Overview</h2>
   <pre class="mermaid">
 flowchart TB
   U[Users / Browser / CLI] -->|HTTPS · REST · HTML| D[Django application<br/>Auth · File API · Sharing · Node manager · Monitor]
@@ -69,7 +69,7 @@ sequenceDiagram
 </div>
 
 <div class="card tight">
-  <h2>The two modes</h2>
+  <div class="card-head"><h2>The Two Modes</h2></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Feature</th><th>Blockchain OFF</th><th>Blockchain ON</th></tr></thead>
     <tbody>
@@ -87,7 +87,7 @@ sequenceDiagram
 </div>
 
 <div class="card tight">
-  <h2>Subject mapping (PBL)</h2>
+  <div class="card-head"><h2>Subject Mapping (PBL)</h2></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Subject</th><th>What to look at</th></tr></thead>
     <tbody>
@@ -100,5 +100,32 @@ sequenceDiagram
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });</script>
+<script>
+(function () {
+  const blocks = Array.from(document.querySelectorAll("pre.mermaid"));
+  blocks.forEach((b) => { b.dataset.src = b.innerHTML; });
+  const render = () => {
+    const dark = BS.isDark();
+    mermaid.initialize({
+      startOnLoad: false, securityLevel: "strict", theme: "base",
+      themeVariables: {
+        fontFamily: "Inter, system-ui, sans-serif", fontSize: "14px", darkMode: dark,
+        background: "transparent",
+        primaryColor: dark ? "#1e2547" : "#eef2ff", primaryBorderColor: dark ? "#4f46e5" : "#a5b4fc",
+        primaryTextColor: dark ? "#e7ebf4" : "#1e1b4b", lineColor: dark ? "#6b7699" : "#94a3b8",
+        secondaryColor: dark ? "#2a1f4d" : "#f5f3ff", tertiaryColor: dark ? "#131a2e" : "#f8fafc",
+        actorBkg: dark ? "#1e2547" : "#eef2ff", actorBorder: dark ? "#4f46e5" : "#a5b4fc", actorTextColor: dark ? "#e7ebf4" : "#1e1b4b",
+        signalColor: dark ? "#c0c7d6" : "#334155", signalTextColor: dark ? "#c0c7d6" : "#334155",
+        noteBkgColor: dark ? "#2a1f4d" : "#f5f3ff", noteTextColor: dark ? "#e7ebf4" : "#1e1b4b", noteBorderColor: dark ? "#7c3aed" : "#c4b5fd",
+        labelBoxBkgColor: dark ? "#1e2547" : "#eef2ff", edgeLabelBackground: dark ? "#10172a" : "#ffffff",
+        clusterBkg: dark ? "#131a2e" : "#f8fafc", clusterBorder: dark ? "#2a3452" : "#d6dbe5"
+      }
+    });
+    blocks.forEach((b) => { b.removeAttribute("data-processed"); b.innerHTML = b.dataset.src; });
+    mermaid.run({ nodes: blocks });
+  };
+  render();
+  document.addEventListener("bs:theme", render);
+})();
+</script>
 {% endblock %}

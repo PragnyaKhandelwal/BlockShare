@@ -1,0 +1,20 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  {% include "partials/head.html" %}
+  <title>Offline — BlockShare</title>
+</head>
+<body>
+{% include "partials/icons.html" %}
+<main class="offline-page">
+  <div class="auth-card" style="text-align:center">
+    <span class="brand-mark" style="margin:0 auto 18px;width:56px;height:56px;border-radius:16px"><svg style="width:32px;height:32px"><use href="#logo"/></svg></span>
+    <h1>You're offline</h1>
+    <p class="muted">BlockShare needs a connection to reach the coordinator and the storage nodes. Your files are safe — they're spread across the cluster, not on this device.</p>
+    <button class="btn primary" type="button" onclick="location.reload()" style="margin-top:8px"><svg class="ic sm"><use href="#i-refresh"/></svg>Try again</button>
+    <p class="small muted" style="margin:16px 0 0">This page reloads automatically when you're back online.</p>
+  </div>
+</main>
+<script>window.addEventListener("online", () => location.reload());</script>
+</body>
+</html>

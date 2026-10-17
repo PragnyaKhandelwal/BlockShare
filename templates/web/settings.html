@@ -1,25 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Control Panel{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Control panel</h1><div class="muted">System mode, storage policy and cluster maintenance.</div></div></div>
+<div class="page-head"><div><h1>Settings</h1><div class="sub">Coordination mode, storage policy and cluster maintenance.</div></div></div>
 
 <div class="card">
-  <h2>Coordination mode</h2>
+  <div class="card-head"><div><h2 style="margin-bottom:2px">Blockchain Mode</h2><div class="muted small">Enable or disable the blockchain coordination layer. Storage is identical in both modes — only the control plane changes.</div></div></div>
   <div class="toggle-panel">
     <div class="mode-card conventional {% if not config.blockchain_enabled %}active{% endif %}">
-      <div class="tag">Mode A</div><h3>Conventional</h3>
-      <p class="small">The Django server is the coordinator. Ownership, permissions, versions and chunk locations live in its database.</p>
+      {% if not config.blockchain_enabled %}<span class="active-tag">Active</span>{% endif %}
+      <span class="icon-tile lg tone-sky"><svg class="ic"><use href="#i-database"/></svg></span>
+      <h3>Conventional Mode</h3>
+      <div class="tag">Centralized coordination · distributed storage</div>
+      <p class="small" style="margin-top:8px">The Django server is the coordinator. Ownership, permissions, versions and chunk locations live in its database.</p>
+      <ul class="feat"><li>Fast</li><li>No gas</li><li>Trust the server</li></ul>
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="mode_off">
-        <button class="btn conv" {% if not config.blockchain_enabled %}disabled{% endif %}>{% if config.blockchain_enabled %}Switch to Conventional{% else %}Active{% endif %}</button></form>
+        <button class="btn conv" {% if not config.blockchain_enabled %}disabled{% endif %}>{% if config.blockchain_enabled %}Switch to Conventional{% else %}Currently active{% endif %}</button></form>
     </div>
     <div class="mode-card blockchain {% if config.blockchain_enabled %}active{% endif %}">
-      <div class="tag">Mode B</div><h3>Blockchain</h3>
-      <p class="small">The <code>FileRegistry</code> and <code>FileSharing</code> contracts are the coordinator. Users sign ownership and sharing changes with their own wallets.</p>
+      {% if config.blockchain_enabled %}<span class="active-tag">Active</span>{% endif %}
+      <span class="icon-tile lg tone-violet"><svg class="ic"><use href="#i-cubes"/></svg></span>
+      <h3>Blockchain Mode</h3>
+      <div class="tag">Decentralized coordination · distributed storage</div>
+      <p class="small" style="margin-top:8px">The <code>FileRegistry</code> and <code>FileSharing</code> contracts are the coordinator. Users sign ownership and sharing changes with their own wallets.</p>
+      <ul class="feat"><li>Verifiable</li><li>Per-user wallets</li><li>Merkle proofs</li></ul>
       <form method="post" data-confirm="Enable Blockchain mode? Existing files will be anchored on-chain (one transaction per change).">{% csrf_token %}<input type="hidden" name="action" value="mode_on">
-        <button class="btn chain" {% if config.blockchain_enabled or not chain_ok %}disabled{% endif %}>{% if config.blockchain_enabled %}Active{% elif chain_ok %}Switch to Blockchain{% else %}Chain unreachable{% endif %}</button></form>
+        <button class="btn chain" {% if config.blockchain_enabled or not chain_ok %}disabled{% endif %}>{% if config.blockchain_enabled %}Currently active{% elif chain_ok %}Switch to Blockchain{% else %}Chain unreachable{% endif %}</button></form>
     </div>
   </div>
-  <p class="muted small" style="margin:14px 0 0">Storage nodes, chunking, replication and transfers are identical in both modes — only the control plane changes. {% if config.mode_changed_at %}Last switch: {{ config.mode_changed_at }}.{% endif %}</p>
+  <hr class="sep">
+  <div class="kv small">
+    <div>Network</div><div>{% if chain_ok %}<span class="badge ok">Reachable</span>{% else %}<span class="badge failed">Unreachable</span>{% endif %}</div>
+    <div>Chain id</div><div class="mono">{{ config.chain_id|default:"—" }}</div>
+    {% if config.mode_changed_at %}<div>Last switch</div><div>{{ config.mode_changed_at }}</div>{% endif %}
+  </div>
 </div>
 
 <div class="grid g2">
@@ -28,23 +41,19 @@
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="save">
       <div class="field"><label>Chunk size (KB)</label><input type="number" name="chunk_size_kb" value="{{ form.chunk_size_kb.value }}" min="64" max="16384"></div>
       <div class="field"><label>Replication factor (copies per chunk)</label><input type="number" name="replication_factor" value="{{ form.replication_factor.value }}" min="1" max="5"></div>
-      <div class="field"><label><input type="checkbox" name="auto_repair" {% if form.auto_repair.value %}checked{% endif %}> Automatic re-replication when a node fails</label></div>
-      <button class="btn primary">Save</button>
+      <div class="field"><label class="check"><input type="checkbox" name="auto_repair" {% if form.auto_repair.value %}checked{% endif %}> Automatic re-replication when a node fails</label></div>
+      <button class="btn primary"><svg class="ic sm"><use href="#i-check"/></svg>Save policy</button>
     </form>
   </div>
   <div class="card">
     <h2>Maintenance</h2>
     <div class="actions">
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="repair"><button class="btn">Repair replicas</button></form>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="repair"><button class="btn"><svg class="ic sm"><use href="#i-refresh"/></svg>Repair replicas</button></form>
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="gc"><button class="btn">Remove orphaned chunks</button></form>
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="sync_chain"><button class="btn" {% if not chain_ok %}disabled{% endif %}>Sync chain state</button></form>
       <form method="post" data-confirm="Deploy fresh contracts and re-anchor everything?">{% csrf_token %}<input type="hidden" name="action" value="redeploy"><button class="btn danger" {% if not chain_ok %}disabled{% endif %}>Redeploy contracts</button></form>
     </div>
-    <p class="muted small">Repair is anti-entropy: every referenced chunk is checked on its replicas (BSP HAS) and copied to new nodes until it has R healthy copies again.</p>
-    <div class="kv small">
-      <div>Blockchain RPC</div><div>{% if chain_ok %}<span class="badge ok">reachable</span>{% else %}<span class="badge failed">unreachable</span>{% endif %}</div>
-      <div>Chain id</div><div>{{ config.chain_id|default:"—" }}</div>
-    </div>
+    <p class="muted small" style="margin:14px 0 0">Repair is anti-entropy: every referenced chunk is checked on its replicas (BSP HAS) and copied to new nodes until it has R healthy copies again.</p>
   </div>
 </div>
 {% endblock %}
