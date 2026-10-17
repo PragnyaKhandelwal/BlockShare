@@ -1,30 +1,51 @@
 {% extends "base.html" %}{% load humanize %}
 {% block title %}Transfers{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Transfers</h1><div class="muted">Network activity between the coordinator and the storage nodes{% if user.is_staff %} (all users){% endif %}. Open a transfer to see its BSP/1 frame log.</div></div></div>
-<div class="card"><h2>Throughput of recent transfers (Mbit/s)</h2><canvas id="tp" height="90"></canvas></div>
-<div class="card tight"><div class="table-wrap"><table>
-  <thead><tr><th>#</th><th>Type</th><th>File</th><th>User</th><th>Mode</th><th>Bytes</th><th>Chunks</th><th>Dedup</th><th>Duration</th><th>Throughput</th><th>Nodes</th><th>Status</th><th>When</th></tr></thead>
-  <tbody>{% for t in transfers %}<tr>
-    <td><a href="{% url 'transfer_detail' t.pk %}">{{ t.pk }}</a></td>
-    <td>{{ t.direction }}</td><td>{{ t.file.name|default:"—" }}{% if t.version_number %} v{{ t.version_number }}{% endif %}</td>
+<div class="page-head"><div><h1>File Transfers</h1><div class="sub">Network activity between the coordinator and the storage nodes{% if user.is_staff %} (all users){% endif %}. Open a transfer to see its BSP/1 frame log.</div></div></div>
+<div class="card">
+  <div class="card-head"><h2>Throughput of recent transfers</h2>
+    <div class="legend"><span><i class="swatch" style="background:#6366f1"></i>Upload</span><span><i class="swatch" style="background:#14b8a6"></i>Download</span><span><i class="swatch" style="background:#f59e0b"></i>Verify</span><span><i class="swatch" style="background:#a855f7"></i>Repair</span></div>
+  </div>
+  <div style="position:relative;height:220px"><canvas id="tp"></canvas></div>
+</div>
+<div class="card tight">
+  <div class="toolbar">
+    <div class="tabs" data-tabs="transfer-table" role="tablist">
+      <button type="button" class="active" data-filter="all">All <span class="count"></span></button>
+      <button type="button" data-filter="upload">Uploads <span class="count"></span></button>
+      <button type="button" data-filter="download">Downloads <span class="count"></span></button>
+      <button type="button" data-filter="verify" data-hide-empty>Verify <span class="count"></span></button>
+      <button type="button" data-filter="repair" data-hide-empty>Repair <span class="count"></span></button>
+    </div>
+    <span class="muted small">latest {{ transfers|length }}</span>
+  </div>
+  <div class="table-wrap"><table id="transfer-table">
+  <thead><tr><th>Transfer</th><th>User</th><th>Mode</th><th>Bytes</th><th>Chunks</th><th>Duration</th><th>Throughput</th><th>Nodes</th><th>Status</th><th>When</th></tr></thead>
+  <tbody>{% for t in transfers %}<tr data-group="{{ t.direction }}">
+    <td>
+      <div class="file-cell">
+        <span class="icon-tile sm {% if t.direction == 'upload' %}tone-green{% elif t.direction == 'download' %}tone-blue{% elif t.direction == 'verify' %}tone-amber{% else %}tone-violet{% endif %}"><svg class="ic"><use href="{% if t.direction == 'upload' %}#i-arrow-up{% elif t.direction == 'download' %}#i-arrow-down{% elif t.direction == 'verify' %}#i-check-circle{% else %}#i-refresh{% endif %}"/></svg></span>
+        <div><a href="{% url 'transfer_detail' t.pk %}">{{ t.file.name|default:"—" }}{% if t.version_number %} <span class="muted" style="font-weight:500">v{{ t.version_number }}</span>{% endif %}</a><div class="meta">#{{ t.pk }} · {{ t.get_direction_display }}</div></div>
+      </div>
+    </td>
     <td>{{ t.user.username|default:"system" }}</td><td><span class="badge {{ t.mode }}">{{ t.mode }}</span></td>
-    <td>{{ t.bytes|filesizeformat }}</td><td>{{ t.chunks }}</td><td>{{ t.deduplicated }}</td>
-    <td>{{ t.duration_ms|floatformat:0 }} ms</td><td>{{ t.throughput_mbps }}</td>
-    <td class="small">{{ t.nodes_used|join:", " }}</td>
-    <td><span class="badge {{ t.status }}">{{ t.status }}</span></td><td class="muted">{{ t.created_at|naturaltime }}</td>
-  </tr>{% empty %}<tr><td colspan="13" class="muted">No transfers yet.</td></tr>{% endfor %}</tbody>
+    <td class="nowrap">{{ t.bytes|filesizeformat }}</td><td class="nowrap">{{ t.chunks }}{% if t.deduplicated %} <span class="muted small">· {{ t.deduplicated }} dedup</span>{% endif %}</td>
+    <td class="nowrap">{{ t.duration_ms|floatformat:0 }} ms</td><td class="nowrap"><strong>{{ t.throughput_mbps }}</strong> <span class="muted small">Mbit/s</span></td>
+    <td class="small nowrap">{{ t.nodes_used|join:", " }}</td>
+    <td><span class="badge {{ t.status }}">{{ t.status }}</span></td><td class="muted nowrap">{{ t.created_at|naturaltime }}</td>
+  </tr>{% empty %}<tr><td colspan="10">No transfers yet.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 const d = {{ chart|safe }};
-const colors = { upload: "#1f5fbf", download: "#0e9384", verify: "#b54708", repair: "#6941c6" };
-new Chart(document.getElementById("tp"), {
+const colors = { upload: "#6366f1", download: "#14b8a6", verify: "#f59e0b", repair: "#a855f7" };
+BS.chart(document.getElementById("tp"), () => ({
   type: "bar",
-  data: { labels: d.labels, datasets: [{ label: "Mbit/s", data: d.mbps, backgroundColor: d.dir.map(x => colors[x] || "#64748b"), borderRadius: 4 }] },
-  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-});
+  data: { labels: d.labels, datasets: [{ label: "Mbit/s", data: d.mbps, backgroundColor: d.dir.map(x => colors[x] || "#64748b"), borderRadius: 6, maxBarThickness: 28 }] },
+  options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, title: { display: true, text: "Mbit/s" } }, x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 14 } } } }
+}));
 </script>
 {% endblock %}

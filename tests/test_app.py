@@ -225,3 +225,40 @@ class BlockchainModeTests(BaseCase):
         f.refresh_from_db()
         self.assertTrue(f.on_chain)
         self.assertEqual(services.read_all(self.bob, f), b"made while chain was off" * 100)
+
+
+class PwaTests(TransactionTestCase):
+    """Installable-app endpoints: manifest, root-scoped service worker, offline page."""
+
+    def test_manifest_is_installable(self):
+        r = self.client.get("/manifest.webmanifest")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/manifest+json")
+        data = r.json()
+        self.assertEqual(data["display"], "standalone")
+        self.assertEqual(data["scope"], "/")
+        sizes = {i["sizes"] for i in data["icons"]}
+        self.assertTrue({"192x192", "512x512"} <= sizes)
+        self.assertTrue(any(i["purpose"] == "maskable" for i in data["icons"]))
+        for icon in data["icons"]:
+            self.assertTrue(icon["src"].startswith("/static/"))
+
+    def test_service_worker_is_served_from_root(self):
+        r = self.client.get("/sw.js")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("javascript", r["Content-Type"])
+        self.assertIn("no-cache", r["Cache-Control"])
+        body = r.content.decode()
+        self.assertNotIn("{{", body)
+        self.assertIn('"/offline/"', body)
+        self.assertIn("/static/css/app.css", body)
+
+    def test_offline_page_is_public(self):
+        r = self.client.get("/offline/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "You're offline")
+
+    def test_pages_link_the_manifest(self):
+        r = self.client.get("/login/")
+        self.assertContains(r, 'rel="manifest"')
+        self.assertContains(r, "apple-touch-icon")

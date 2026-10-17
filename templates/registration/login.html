@@ -1,34 +1,39 @@
 {% load static %}<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  {% include "partials/head.html" %}
   <title>Sign in — BlockShare</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
 </head>
 <body>
 {% include "partials/icons.html" %}
 <div class="auth">
   {% include "partials/auth_side.html" %}
   <main class="auth-main">
+    <button class="icon-btn theme-toggle" data-theme-toggle title="Toggle dark mode" aria-label="Toggle dark mode">
+      <svg class="ic i-moon"><use href="#i-moon"/></svg><svg class="ic i-sun"><use href="#i-sun"/></svg>
+    </button>
     <div class="auth-card">
-      <h1>Sign in</h1>
-      <p class="muted">Use your BlockShare account to continue.</p>
+      <a class="brand auth-mobile-brand" href="{% url 'home' %}" style="padding:0">
+        <span class="brand-mark"><svg><use href="#logo"/></svg></span>
+        <span class="brand-text"><span class="brand-name">BlockShare</span><span class="brand-sub">Distributed File Storage</span></span>
+      </a>
+      <h1>Welcome back</h1>
+      <p class="muted">Sign in to your BlockShare account to continue.</p>
       {% if form.errors %}<ul class="messages"><li class="error">That username and password don't match.</li></ul>{% endif %}
-      <form method="post">{% csrf_token %}
-        <div class="field"><label for="id_username">Username</label><input type="text" name="username" id="id_username" autocomplete="username" autofocus required></div>
-        <div class="field"><label for="id_password">Password</label><input type="password" name="password" id="id_password" autocomplete="current-password" required></div>
+      <form method="post" style="margin-top:20px">{% csrf_token %}
+        <div class="field"><label for="id_username">Username</label><input type="text" name="username" id="id_username" autocomplete="username" placeholder="alice" autofocus required></div>
+        <div class="field"><label for="id_password">Password</label><input type="password" name="password" id="id_password" autocomplete="current-password" placeholder="••••••••" required></div>
         <input type="hidden" name="next" value="{{ next }}">
-        <button class="btn primary" style="width:100%;justify-content:center;padding:9px">Sign in</button>
+        <button class="btn primary">Sign in<svg class="ic sm"><use href="#i-arrow-right"/></svg></button>
       </form>
-      <p class="small muted" style="margin-top:16px">New here? <a href="{% url 'register' %}">Create an account</a></p>
+      <p class="small muted" style="margin-top:18px;text-align:center">New here? <a href="{% url 'register' %}">Create an account</a></p>
       <div class="demo-users">
-        <strong>Demo accounts</strong><br>
-        <code>alice</code>, <code>bob</code> and <code>charlie</code> — password <code>blockshare123</code>
+        <svg class="ic sm"><use href="#i-users"/></svg>
+        <div><strong>Demo accounts</strong><br><code>alice</code>, <code>bob</code> and <code>charlie</code> — password <code>blockshare123</code></div>
       </div>
     </div>
   </main>
 </div>
+<script src="{% static 'js/app.js' %}"></script>
 </body>
 </html>

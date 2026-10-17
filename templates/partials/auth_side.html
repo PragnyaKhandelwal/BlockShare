@@ -1,8 +1,16 @@
 <aside class="auth-side">
-  <a class="brand" href="{% url 'home' %}"><svg><use href="#logo"/></svg>BlockShare</a>
+  <a class="brand" href="{% url 'home' %}">
+    <span class="brand-mark"><svg><use href="#logo"/></svg></span>
+    <span class="brand-text"><span class="brand-name">BlockShare</span><span class="brand-sub">Distributed File Storage</span></span>
+  </a>
   <div>
-    <h2>Files are split into chunks and spread over a cluster of storage nodes.</h2>
+    <h2>Files split into chunks, spread across a cluster — and trust you can verify.</h2>
     <p>Who owns a file and who can open it is decided either by the Django server or by Ethereum smart contracts — the administrator can switch between the two at runtime.</p>
+    <ul class="points">
+      <li><svg class="ic"><use href="#i-server"/></svg>Chunked, replicated storage over a custom TCP protocol</li>
+      <li><svg class="ic"><use href="#i-cubes"/></svg>Optional on-chain ownership, sharing and versions</li>
+      <li><svg class="ic"><use href="#i-shield"/></svg>Merkle-root integrity checks with self-repair</li>
+    </ul>
   </div>
   <div class="foot">Project-based learning, B.Tech CSE · Jaypee Institute of Information Technology, Noida</div>
 </aside>

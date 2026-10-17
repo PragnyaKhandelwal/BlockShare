@@ -2,9 +2,13 @@
 {% block title %}Shared With Me{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Shared With Me</h1><div class="muted">Grants answered by: <strong>{% if coordinator %}{{ coordinator.source }}{% else %}—{% endif %}</strong>{% if system.blockchain_enabled %} (<code>FileSharing.getFilesSharedWith(yourWallet)</code>){% endif %}</div></div>
+  <div><h1>Shared With Me</h1><div class="sub">Files other people have granted you access to. Grants answered by <strong>{% if coordinator %}{{ coordinator.source }}{% else %}—{% endif %}</strong>{% if system.blockchain_enabled %} (<code>FileSharing.getFilesSharedWith(yourWallet)</code>){% endif %}.</div></div>
 </div>
 <div class="card tight">
-  {% include "partials/file_table.html" with rows=pairs empty="Nobody has shared a file with you yet. Ask alice to share one with you!" %}
+  <div class="toolbar">
+    {% include "partials/file_tabs.html" with target="shared-table" %}
+    <span class="muted small">{{ pairs|length }} file{{ pairs|length|pluralize }}</span>
+  </div>
+  {% include "partials/file_table.html" with rows=pairs table_id="shared-table" empty="Nobody has shared a file with you yet. Ask alice to share one with you!" %}
 </div>
 {% endblock %}

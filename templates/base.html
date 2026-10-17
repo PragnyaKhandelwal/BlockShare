@@ -1,63 +1,88 @@
 {% load static %}<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% include "partials/head.html" %}
   <title>{% block title %}BlockShare{% endblock %} — BlockShare</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
   {% block head %}{% endblock %}
 </head>
 <body>
 {% include "partials/icons.html" %}
 {% with url=request.resolver_match.url_name %}
 <div class="shell">
-  <aside class="sidebar">
-    <a class="brand" href="{% url 'dashboard' %}"><svg><use href="#logo"/></svg>BlockShare</a>
+  <aside class="sidebar" aria-label="Main navigation">
+    <a class="brand" href="{% url 'dashboard' %}">
+      <span class="brand-mark"><svg><use href="#logo"/></svg></span>
+      <span class="brand-text"><span class="brand-name">BlockShare</span><span class="brand-sub">Distributed File Storage</span></span>
+    </a>
     <nav class="nav">
       <a href="{% url 'dashboard' %}" class="{% if url == 'dashboard' %}active{% endif %}"><svg class="ic"><use href="#i-grid"/></svg>Dashboard</a>
-      <a href="{% url 'files' %}" class="{% if url == 'files' or url == 'file_detail' %}active{% endif %}"><svg class="ic"><use href="#i-folder"/></svg>My files</a>
+      <a href="{% url 'files' %}" class="{% if url == 'files' or url == 'file_detail' %}active{% endif %}"><svg class="ic"><use href="#i-folder"/></svg>My Files</a>
+      <a href="{% url 'shared' %}" class="{% if url == 'shared' %}active{% endif %}"><svg class="ic"><use href="#i-users"/></svg>Shared With Me</a>
       <a href="{% url 'upload' %}" class="{% if url == 'upload' %}active{% endif %}"><svg class="ic"><use href="#i-upload"/></svg>Upload</a>
-      <a href="{% url 'shared' %}" class="{% if url == 'shared' %}active{% endif %}"><svg class="ic"><use href="#i-users"/></svg>Shared with me</a>
       <a href="{% url 'versions' %}" class="{% if url == 'versions' %}active{% endif %}"><svg class="ic"><use href="#i-branch"/></svg>Versions</a>
       <div class="nav-section">Network</div>
-      <a href="{% url 'nodes' %}" class="{% if url == 'nodes' %}active{% endif %}"><svg class="ic"><use href="#i-server"/></svg>Storage nodes</a>
+      <a href="{% url 'nodes' %}" class="{% if url == 'nodes' %}active{% endif %}"><svg class="ic"><use href="#i-server"/></svg>Nodes</a>
       <a href="{% url 'transfers' %}" class="{% if url == 'transfers' or url == 'transfer_detail' %}active{% endif %}"><svg class="ic"><use href="#i-transfer"/></svg>Transfers</a>
-      <a href="{% url 'blockchain' %}" class="{% if url == 'blockchain' %}active{% endif %}"><svg class="ic"><use href="#i-link"/></svg>Blockchain</a>
+      <a href="{% url 'blockchain' %}" class="{% if url == 'blockchain' %}active{% endif %}"><svg class="ic"><use href="#i-cubes"/></svg>Blockchain</a>
       <div class="nav-section">System</div>
       <a href="{% url 'architecture' %}" class="{% if url == 'architecture' %}active{% endif %}"><svg class="ic"><use href="#i-layers"/></svg>Architecture</a>
       {% if user.is_staff %}
-      <a href="{% url 'settings' %}" class="{% if url == 'settings' %}active{% endif %}"><svg class="ic"><use href="#i-sliders"/></svg>Control panel</a>
-      <a href="{% url 'admin:index' %}"><svg class="ic"><use href="#i-shield"/></svg>Django admin</a>
+      <a href="{% url 'settings' %}" class="{% if url == 'settings' %}active{% endif %}"><svg class="ic"><use href="#i-sliders"/></svg>Settings</a>
+      <a href="{% url 'admin:index' %}"><svg class="ic"><use href="#i-shield"/></svg>Django admin<svg class="ic ext"><use href="#i-arrow-right"/></svg></a>
       {% endif %}
-      <a href="{% url 'api-docs' %}"><svg class="ic"><use href="#i-code"/></svg>API reference</a>
+      <a href="{% url 'api-docs' %}"><svg class="ic"><use href="#i-code"/></svg>API reference<svg class="ic ext"><use href="#i-arrow-right"/></svg></a>
     </nav>
-    <div class="sidebar-foot">PBL · JIIT Noida · Sem 5</div>
+    <div class="sidebar-foot">
+      <button type="button" class="install-btn" data-install hidden><svg class="ic sm"><use href="#i-download"/></svg>Install app</button>
+      <div class="side-user">
+        <span class="avatar">{{ user.username|slice:":1" }}</span>
+        <div class="who">
+          <strong>{{ user.username }}</strong>
+          <span>{% if wallet_address %}{{ wallet_address|slice:":8" }}…{{ wallet_address|slice:"-6:" }}{% elif user.email %}{{ user.email }}{% else %}{% if user.is_staff %}Administrator{% else %}Member{% endif %}{% endif %}</span>
+        </div>
+        <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn sm ghost icon" title="Sign out" aria-label="Sign out"><svg class="ic sm"><use href="#i-logout"/></svg></button></form>
+      </div>
+      <div class="side-note">PBL · JIIT Noida · Sem 5</div>
+    </div>
   </aside>
+  <div class="scrim"></div>
   <div class="main">
     <header class="topbar">
-      <div class="actions">
-        <button class="btn sm ghost menu-btn" data-menu aria-label="Menu"><svg class="ic"><use href="#i-menu"/></svg></button>
+      <div class="topbar-left">
+        <button class="btn sm ghost icon menu-btn" data-menu aria-label="Menu"><svg class="ic"><use href="#i-menu"/></svg></button>
+        <a class="brand topbar-brand" href="{% url 'dashboard' %}"><span class="brand-mark"><svg><use href="#logo"/></svg></span><span class="brand-name">BlockShare</span></a>
+        <label class="search hide-sm" aria-label="Filter this page">
+          <svg class="ic sm"><use href="#i-search"/></svg>
+          <input type="search" id="page-search" placeholder="Filter files, nodes, transactions…" autocomplete="off">
+          <kbd>/</kbd>
+        </label>
+      </div>
+      <div class="topbar-right">
         {% if system %}
-        <a href="{% if user.is_staff %}{% url 'settings' %}{% else %}{% url 'architecture' %}{% endif %}" class="mode-pill {{ system.mode }}" title="Current coordination mode">
-          <span class="dot"></span>{% if system.blockchain_enabled %}Blockchain mode{% else %}Conventional mode{% endif %}
-          <span class="muted hide-sm" style="font-weight:400">· {% if system.blockchain_enabled %}smart contracts are the coordinator{% else %}Django is the coordinator{% endif %}</span>
+        <a href="{% if user.is_staff %}{% url 'settings' %}{% else %}{% url 'architecture' %}{% endif %}" class="mode-pill {{ system.mode }}" title="{% if system.blockchain_enabled %}Smart contracts are the coordinator{% else %}Django is the coordinator{% endif %}">
+          <span class="dot"></span><span class="lbl">Mode:</span>{% if system.blockchain_enabled %}Blockchain ON{% else %}Conventional{% endif %}
         </a>
         {% endif %}
-      </div>
-      <div class="actions">
-        {% if wallet_address %}<span class="mono muted hide-sm" data-copy="{{ wallet_address }}" title="Your wallet address">{{ wallet_address|slice:":6" }}…{{ wallet_address|slice:"-4:" }}</span>{% endif %}
-        <span class="user-chip"><span class="avatar">{{ user.username|slice:":1" }}</span><span class="hide-sm">{{ user.username }}</span></span>
-        <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn sm ghost" title="Sign out"><svg class="ic sm"><use href="#i-logout"/></svg><span class="hide-sm">Sign out</span></button></form>
+        {% if wallet_address %}<span class="wallet-chip mono hide-sm" data-copy="{{ wallet_address }}"><svg class="ic sm"><use href="#i-wallet"/></svg>{{ wallet_address|slice:":6" }}…{{ wallet_address|slice:"-4:" }}</span>{% endif %}
+        <button class="icon-btn theme-toggle" data-theme-toggle title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg class="ic i-moon"><use href="#i-moon"/></svg><svg class="ic i-sun"><use href="#i-sun"/></svg>
+        </button>
+        <span class="user-chip" title="Signed in as {{ user.username }}"><span class="avatar">{{ user.username|slice:":1" }}</span></span>
       </div>
     </header>
     <main class="content">
+      <div class="offline-bar" role="status"><svg class="ic sm"><use href="#i-alert"/></svg>You're offline — actions will work again once you reconnect.</div>
       {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>
+  <nav class="bottom-nav" aria-label="Quick navigation">
+    <a href="{% url 'dashboard' %}" class="{% if url == 'dashboard' %}active{% endif %}"><svg class="ic"><use href="#i-grid"/></svg><span>Home</span></a>
+    <a href="{% url 'files' %}" class="{% if url == 'files' or url == 'file_detail' or url == 'shared' %}active{% endif %}"><svg class="ic"><use href="#i-folder"/></svg><span>Files</span></a>
+    <a href="{% url 'upload' %}" class="fab {% if url == 'upload' %}active{% endif %}" aria-label="Upload"><span class="fab-in"><svg class="ic"><use href="#i-plus"/></svg></span></a>
+    <a href="{% url 'transfers' %}" class="{% if url == 'transfers' or url == 'transfer_detail' %}active{% endif %}"><svg class="ic"><use href="#i-transfer"/></svg><span>Transfers</span></a>
+    <button type="button" data-menu><svg class="ic"><use href="#i-menu"/></svg><span>More</span></button>
+  </nav>
 </div>
 {% endwith %}
 <script src="{% static 'js/app.js' %}"></script>

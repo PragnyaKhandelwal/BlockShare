@@ -1,23 +1,35 @@
-{% load humanize %}
+{% load humanize ui %}
 <div class="table-wrap">
-<table>
-  <thead><tr><th>Name</th><th>ID</th><th>Size</th><th>Version</th><th>Owner</th><th>Access</th><th>Coordination</th><th>Updated</th></tr></thead>
+<table{% if table_id %} id="{{ table_id }}"{% endif %}>
+  <thead><tr><th>Name</th><th>Size</th><th>Version</th><th>Owner</th><th>Access</th><th>Coordination</th><th>Updated</th><th class="hide-sm"></th></tr></thead>
   <tbody>
   {% for item in rows %}
     {% with f=item.0 perm=item.1 %}
-    <tr>
-      <td><a href="{% url 'file_detail' f.pk %}"><strong>{{ f.name }}</strong></a></td>
-      <td class="mono">{{ f.short_id }}</td>
-      <td>{{ f.size|filesizeformat }}</td>
-      <td>v{{ f.latest_version }}</td>
+    <tr data-group="{{ f.name|file_group }}">
+      <td>
+        <div class="file-cell">
+          <span class="ficon k-{{ f.name|file_kind }}">{{ f.name|file_ext }}</span>
+          <div><a href="{% url 'file_detail' f.pk %}">{{ f.name }}</a><div class="meta mono">{{ f.short_id }}</div></div>
+        </div>
+      </td>
+      <td class="nowrap">{{ f.size|filesizeformat }}</td>
+      <td><span class="version-pill">v{{ f.latest_version }}</span></td>
       <td>{{ f.owner.username }}</td>
       <td><span class="badge {{ perm }}">{{ perm }}</span></td>
-      <td>{% if f.on_chain %}<span class="badge blockchain">on-chain</span>{% else %}<span class="badge conventional">Django</span>{% endif %}</td>
-      <td class="muted">{{ f.updated_at|naturaltime }}</td>
+      <td>{% if f.on_chain %}<span class="badge blockchain"><svg class="ic sm"><use href="#i-cube"/></svg>On-chain</span>{% else %}<span class="badge conventional"><svg class="ic sm"><use href="#i-database"/></svg>Django</span>{% endif %}</td>
+      <td class="muted nowrap">{{ f.updated_at|naturaltime }}</td>
+      <td class="hide-sm">
+        <div class="row-actions">
+          <a href="{% url 'file_download' f.pk %}" title="Download latest version" aria-label="Download {{ f.name }}"><svg class="ic sm"><use href="#i-download"/></svg></a>
+          <a href="{% url 'file_detail' f.pk %}" title="Details, sharing &amp; versions" aria-label="Open {{ f.name }}"><svg class="ic sm"><use href="#i-chevron-right"/></svg></a>
+        </div>
+      </td>
     </tr>
     {% endwith %}
   {% empty %}
-    <tr><td colspan="8" class="muted">{{ empty|default:"No files yet." }}</td></tr>
+    <tr><td colspan="8">
+      <div class="empty-state"><span class="icon-tile tone-indigo"><svg class="ic"><use href="#i-folder"/></svg></span>{{ empty|default:"No files yet." }}</div>
+    </td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -1,74 +1,148 @@
 {% extends "base.html" %}{% load humanize %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Dashboard</h1><div class="muted">One storage service — data physically spread across {{ nodes|length }} network node{{ nodes|length|pluralize }}.</div></div>
-  <div class="actions"><a class="btn primary" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-upload"/></svg>Upload file</a></div>
-</div>
+<section class="welcome">
+  <div>
+    <span class="eyebrow-chip"><span class="dot up"></span>{{ nodes_up }} of {{ nodes|length }} storage node{{ nodes|length|pluralize }} online</span>
+    <h1>Welcome back, {{ user.username|capfirst }} 👋</h1>
+    <p>Your distributed cloud storage{% if system.blockchain_enabled %}, coordinated by smart contracts on the blockchain{% else %} with optional blockchain coordination{% endif %}.</p>
+    <div class="actions">
+      <a class="btn light" href="{% url 'upload' %}"><svg class="ic sm"><use href="#i-upload"/></svg>Upload File</a>
+      <a class="btn glass" href="{% url 'files' %}">Browse my files<svg class="ic sm"><use href="#i-arrow-right"/></svg></a>
+    </div>
+  </div>
+  <svg class="welcome-art" viewBox="0 0 320 132" aria-hidden="true">
+    <defs>
+      <linearGradient id="cb-top" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c7d2fe"/><stop offset="1" stop-color="#a5b4fc"/></linearGradient>
+      <linearGradient id="cb-left" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+      <linearGradient id="cb-right" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d5dfc"/><stop offset="1" stop-color="#4338ca"/></linearGradient>
+      <g id="cb">
+        <path d="M0 0 24.2 14 0 28-24.2 14z" fill="url(#cb-top)"/>
+        <path d="M-24.2 14 0 28v28l-24.2-14z" fill="url(#cb-left)"/>
+        <path d="M24.2 14v28L0 56V28z" fill="url(#cb-right)"/>
+        <path d="M0 28v28M-24.2 14 0 28l24.2-14" stroke="#fff" stroke-opacity=".25" fill="none"/>
+      </g>
+    </defs>
+    <g stroke="#c7d2fe" stroke-opacity=".45" stroke-width="1.3" stroke-dasharray="3 4" fill="none">
+      <path d="M160 57 92 90M160 57l72 30M160 57l110-29M160 57 52 31M92 90l140-3"/>
+    </g>
+    <use href="#cb" transform="translate(52 14) scale(.6)" opacity=".75"/>
+    <use href="#cb" transform="translate(270 8) scale(.7)" opacity=".85"/>
+    <use href="#cb" transform="translate(92 62)"/>
+    <use href="#cb" transform="translate(232 58) scale(1.05)"/>
+    <use href="#cb" transform="translate(160 16) scale(1.4)"/>
+    <g fill="#fff"><circle cx="160" cy="57" r="2.5"/><circle cx="92" cy="90" r="2"/><circle cx="232" cy="87" r="2"/></g>
+  </svg>
+</section>
 
-<div class="grid g4" style="margin-bottom:18px">
-  <div class="stat"><div class="label">My files</div><div class="value">{{ owned_count }}</div><div class="hint">{{ shared_count }} shared with me</div></div>
-  <div class="stat"><div class="label">Storage nodes</div><div class="value">{{ nodes_up }}/{{ nodes|length }}</div><div class="hint">up / total</div></div>
-  <div class="stat"><div class="label">Cluster data</div><div class="value">{{ stored_bytes|filesizeformat }}</div><div class="hint">incl. R={{ system.replication_factor }} replicas</div></div>
-  <div class="stat"><div class="label">Coordinator</div><div class="value text">{% if system.blockchain_enabled %}Smart contracts{% else %}Django{% endif %}</div><div class="hint">{% if coordinator %}{{ coordinator.source }}{% else %}unavailable{% endif %}</div></div>
+<div class="grid g4">
+  <div class="stat"><span class="icon-tile tone-blue"><svg class="ic"><use href="#i-file"/></svg></span>
+    <div class="body"><div class="label">My Files</div><div class="value">{{ owned_count }}</div><div class="hint">owned by you</div></div></div>
+  <div class="stat"><span class="icon-tile tone-green"><svg class="ic"><use href="#i-database"/></svg></span>
+    <div class="body"><div class="label">Cluster Data</div><div class="value">{{ stored_bytes|filesizeformat }}</div><div class="hint">incl. R={{ system.replication_factor }} replicas</div></div></div>
+  <div class="stat"><span class="icon-tile tone-violet"><svg class="ic"><use href="#i-share"/></svg></span>
+    <div class="body"><div class="label">Shared With Me</div><div class="value">{{ shared_count }}</div><div class="hint">files others granted you</div></div></div>
+  <div class="stat"><span class="icon-tile tone-orange"><svg class="ic"><use href="#i-server"/></svg></span>
+    <div class="body"><div class="label">Storage Nodes</div><div class="value">{{ nodes_up }}<span class="muted" style="font-size:17px;font-weight:600">/{{ nodes|length }}</span></div><div class="hint">up / total · coordinated by {% if system.blockchain_enabled %}contracts{% else %}Django{% endif %}</div></div></div>
 </div>
 
 <div class="grid g2">
-  <div class="card">
-    <h2>How your files are handled right now</h2>
-    {% if system.blockchain_enabled %}
-    <div class="note chain">
-      <strong>Decentralized coordination + distributed storage.</strong> Ownership, sharing permissions and the version history of every file live in the <em>FileRegistry</em> and <em>FileSharing</em> smart contracts. Your wallet signs each change; access checks are answered by the chain.
+  <div class="card fill">
+    <div class="card-head"><h2>Storage Distribution</h2><a class="link" href="{% url 'nodes' %}">Nodes<svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
+    {% if stored_bytes %}
+    <div class="donut-wrap">
+      <div class="donut">
+        <canvas id="nodeChart" width="190" height="190"></canvas>
+        <div class="center"><strong>{{ stored_bytes|filesizeformat }}</strong><span>stored</span></div>
+      </div>
+      <ul class="legend-list" id="nodeLegend"></ul>
     </div>
     {% else %}
-    <div class="note conv">
-      <strong>Centralized coordination + distributed storage.</strong> Django and its database decide who owns a file and who may access it. The file bytes are still chunked and spread over the storage nodes.
-    </div>
+    <div class="empty-state"><span class="icon-tile tone-indigo"><svg class="ic"><use href="#i-database"/></svg></span>No chunks stored yet — upload a file to see how it spreads across the nodes.</div>
     {% endif %}
-    <div class="flow" style="margin-top:14px">
-      <span class="step">Upload</span><span class="arrow">→</span><span class="step">chunk ({{ system.chunk_size|filesizeformat }})</span><span class="arrow">→</span><span class="step">SHA-256 + Merkle root</span><span class="arrow">→</span><span class="step">consistent-hash placement</span><span class="arrow">→</span><span class="step">TCP replication pipeline ×{{ system.replication_factor }}</span><span class="arrow">→</span><span class="step">{% if system.blockchain_enabled %}registerFile() tx{% else %}DB record{% endif %}</span>
-    </div>
   </div>
-  <div class="card">
-    <h2>Data per storage node</h2>
-    <canvas id="nodeChart" height="150"></canvas>
+  <div class="card tight">
+    <div class="card-head"><h2>Recent Activity</h2><a class="link" href="{% url 'transfers' %}">View all<svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
+    <ul class="activity">
+      {% for t in transfers %}
+      <li>
+        <span class="icon-tile sm {% if t.direction == 'upload' %}tone-green{% elif t.direction == 'download' %}tone-blue{% elif t.direction == 'verify' %}tone-amber{% else %}tone-violet{% endif %}">
+          <svg class="ic"><use href="{% if t.direction == 'upload' %}#i-arrow-up{% elif t.direction == 'download' %}#i-arrow-down{% elif t.direction == 'verify' %}#i-check-circle{% else %}#i-refresh{% endif %}"/></svg>
+        </span>
+        <div class="what">
+          <strong><a href="{% url 'transfer_detail' t.pk %}">{{ t.file.name|default:"(file removed)" }}</a></strong>
+          <span>{{ t.get_direction_display }}{% if t.version_number %} v{{ t.version_number }}{% endif %} · {{ t.bytes|filesizeformat }} · {{ t.throughput_mbps }} Mbit/s</span>
+        </div>
+        <div class="when">{% if t.status != 'ok' %}<span class="badge {{ t.status }}">{{ t.status }}</span><br>{% endif %}{{ t.created_at|naturaltime }}</div>
+      </li>
+      {% empty %}
+      <li><div class="empty-state" style="width:100%">No transfers yet.</div></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>How your files are handled right now</h2><span class="badge {{ system.mode }}">{% if system.blockchain_enabled %}Blockchain mode{% else %}Conventional mode{% endif %}</span></div>
+  {% if system.blockchain_enabled %}
+  <div class="note chain">
+    <strong>Decentralized coordination + distributed storage.</strong> Ownership, sharing permissions and the version history of every file live in the <em>FileRegistry</em> and <em>FileSharing</em> smart contracts. Your wallet signs each change; access checks are answered by the chain.
+  </div>
+  {% else %}
+  <div class="note conv">
+    <strong>Centralized coordination + distributed storage.</strong> Django and its database decide who owns a file and who may access it. The file bytes are still chunked and spread over the storage nodes.
+  </div>
+  {% endif %}
+  <div class="pipeline">
+    <span class="step"><b>1</b>Upload</span><svg class="ic sm arrow"><use href="#i-chevron-right"/></svg>
+    <span class="step"><b>2</b>Chunk ({{ system.chunk_size|filesizeformat }})</span><svg class="ic sm arrow"><use href="#i-chevron-right"/></svg>
+    <span class="step"><b>3</b>SHA-256 + Merkle root</span><svg class="ic sm arrow"><use href="#i-chevron-right"/></svg>
+    <span class="step"><b>4</b>Consistent-hash placement</span><svg class="ic sm arrow"><use href="#i-chevron-right"/></svg>
+    <span class="step"><b>5</b>TCP replication ×{{ system.replication_factor }}</span><svg class="ic sm arrow"><use href="#i-chevron-right"/></svg>
+    <span class="step"><b>6</b>{% if system.blockchain_enabled %}registerFile() tx{% else %}DB record{% endif %}</span>
   </div>
 </div>
 
 <div class="card tight">
-  <h2>Recent files</h2>
+  <div class="card-head"><h2>Recent Files</h2><a class="link" href="{% url 'files' %}">All files<svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
   {% include "partials/file_table.html" with rows=owned_rows empty="Upload your first file to see it distributed across the nodes." %}
 </div>
 
-<div class="grid g2">
-  <div class="card tight">
-    <h2>My recent transfers</h2>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Type</th><th>File</th><th>Size</th><th>Throughput</th><th>Status</th></tr></thead>
-      <tbody>{% for t in transfers %}
-        <tr><td><a href="{% url 'transfer_detail' t.pk %}">{{ t.direction }}</a></td><td>{{ t.file.name|default:"—" }}</td><td>{{ t.bytes|filesizeformat }}</td><td>{{ t.throughput_mbps }} Mbit/s</td><td><span class="badge {{ t.status }}">{{ t.status }}</span></td></tr>
-      {% empty %}<tr><td colspan="5" class="muted">No transfers yet.</td></tr>{% endfor %}</tbody>
-    </table></div>
-  </div>
-  <div class="card tight">
-    <h2>Latest blockchain transactions</h2>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Function</th><th>User</th><th>Gas</th><th>Block</th></tr></thead>
-      <tbody>{% for tx in chain_txs %}
-        <tr><td><code>{{ tx.contract }}.{{ tx.function }}</code></td><td>{{ tx.user.username|default:"operator" }}</td><td>{{ tx.gas_used|default:"—"|intcomma }}</td><td>{{ tx.block_number|default:"—" }}</td></tr>
-      {% empty %}<tr><td colspan="4" class="muted">No transactions yet — switch to Blockchain mode to see smart-contract coordination.</td></tr>{% endfor %}</tbody>
-    </table></div>
-  </div>
+<div class="card tight">
+  <div class="card-head"><h2>Latest Blockchain Transactions</h2><a class="link" href="{% url 'blockchain' %}">Explorer<svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Function</th><th>User</th><th>Gas</th><th>Block</th></tr></thead>
+    <tbody>{% for tx in chain_txs %}
+      <tr><td><code>{{ tx.contract }}.{{ tx.function }}</code></td><td>{{ tx.user.username|default:"operator" }}</td><td>{{ tx.gas_used|default:"—"|intcomma }}</td><td>{% if tx.block_number %}<span class="version-pill">#{{ tx.block_number }}</span>{% else %}—{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="4">No transactions yet — switch to Blockchain mode to see smart-contract coordination.</td></tr>{% endfor %}</tbody>
+  </table></div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-const d = {{ chart|safe }};
-new Chart(document.getElementById("nodeChart"), {
-  type: "bar",
-  data: { labels: d.labels, datasets: [{ label: "MB stored", data: d.bytes.map(b => +(b / 1048576).toFixed(2)), backgroundColor: "#1f5fbf", borderRadius: 4, maxBarThickness: 56 }] },
-  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: "MB" } } } }
-});
+(function () {
+  const d = {{ chart|safe }};
+  const canvas = document.getElementById("nodeChart");
+  if (!canvas) return;
+  const total = d.bytes.reduce((a, b) => a + b, 0) || 1;
+  const fmt = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : (b / 1024).toFixed(0) + " KB";
+  const legend = document.getElementById("nodeLegend");
+  d.labels.forEach((name, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = '<span class="sw"></span><span class="nm"></span><span class="vl"></span>';
+    li.querySelector(".sw").style.background = BS.palette[i % BS.palette.length];
+    li.querySelector(".nm").textContent = name;
+    li.querySelector(".vl").textContent = fmt(d.bytes[i]) + " (" + Math.round(d.bytes[i] / total * 100) + "%)";
+    legend.appendChild(li);
+  });
+  BS.chart(canvas, () => ({
+    type: "doughnut",
+    data: { labels: d.labels, datasets: [{ data: d.bytes, backgroundColor: d.labels.map((_, i) => BS.palette[i % BS.palette.length]),
+      borderColor: BS.css("--panel"), borderWidth: 3, hoverOffset: 6, borderRadius: 4 }] },
+    options: { cutout: "72%", responsive: false, plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: (c) => " " + c.label + ": " + fmt(c.raw) } } } }
+  }));
+})();
 </script>
 {% endblock %}
