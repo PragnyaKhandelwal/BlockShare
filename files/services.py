@@ -102,11 +102,9 @@ def upload_file(user, uploaded, comment: str = "") -> StoredFile:
     return file
 
 
-@transaction.atomic
 def upload_version(user, file: StoredFile, uploaded, comment: str = "") -> FileVersion:
     _check_size(uploaded)
-    # Serialize appends with restores and other uploads; callers may hold stale objects.
-    StoredFile.objects.select_for_update().get(pk=file.pk)
+    # Reload stale callers without holding a database transaction during network I/O.
     file.refresh_from_db()
     coord = get_coordinator()
     coord.require(user, file, PERM_WRITE)
@@ -139,10 +137,9 @@ def upload_version(user, file: StoredFile, uploaded, comment: str = "") -> FileV
     return version
 
 
-@transaction.atomic
 def restore_version(user, file: StoredFile, source_number: int) -> FileVersion:
     """Append an older version's content without re-uploading its stored chunks."""
-    file = StoredFile.objects.select_for_update().get(pk=file.pk)
+    file.refresh_from_db()
     coord = get_coordinator()
     coord.require(user, file, PERM_OWNER)
     if not isinstance(source_number, int) or isinstance(source_number, bool) or source_number < 1:
@@ -173,12 +170,19 @@ def restore_version(user, file: StoredFile, source_number: int) -> FileVersion:
     except StorageError as exc:
         raise ServiceError(str(exc)) from exc
 
-    version = FileVersion.objects.create(
-        file=file, number=number, size=source.size, chunk_size=source.chunk_size, chunk_count=len(chunks),
-        merkle_root=root, manifest_hash=manifest_hash, author=user, comment=f"Restored from v{source.number}",
-    )
-    Chunk.objects.bulk_create([Chunk(version=version, index=c.index, sha256=c.sha256, size=c.size) for c in chunks])
-    coord.add_version(user, file, version)
+    # Keep storage location records outside this short metadata transaction, so
+    # failed restores leave their manifest tracked for garbage collection.
+    with transaction.atomic():
+        version = FileVersion.objects.create(
+            file=file, number=number, size=source.size, chunk_size=source.chunk_size, chunk_count=len(chunks),
+            merkle_root=root, manifest_hash=manifest_hash, author=user, comment=f"Restored from v{source.number}",
+        )
+        Chunk.objects.bulk_create([Chunk(version=version, index=c.index, sha256=c.sha256, size=c.size) for c in chunks])
+    try:
+        coord.add_version(user, file, version)
+    except CoordinationError:
+        version.delete()
+        raise
     file.latest_version = number
     file.save(update_fields=["latest_version", "updated_at"])
     return version

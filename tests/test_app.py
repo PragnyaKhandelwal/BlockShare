@@ -146,6 +146,83 @@ class BaseCase(TransactionTestCase):
 
 
 class ConventionalModeTests(BaseCase):
+    def test_failed_version_upload_keeps_log_and_tracked_replicas_for_cleanup(self):
+        from storage.controller import StorageController, StorageError
+        from storage.models import ChunkLocation
+
+        file = self.upload(self.alice, b"original")
+        existing = set(ChunkLocation.objects.values_list("pk", flat=True))
+        # Six content chunks reach the nodes, then storing the manifest fails.
+        with patch.object(StorageController, "store_blob", side_effect=StorageError("manifest unavailable")):
+            with self.assertRaisesMessage(services.ServiceError, "manifest unavailable"):
+                services.upload_version(self.alice, file, SimpleUploadedFile("v2", os.urandom(6 * 64 * 1024)))
+
+        failed = file.transfers.get(status="failed")
+        self.assertEqual(failed.error, "manifest unavailable")
+        replicas = list(ChunkLocation.objects.exclude(pk__in=existing).select_related("node"))
+        self.assertEqual(len(replicas), 12)
+        ctrl = StorageController()
+        for replica in replicas:
+            self.assertTrue(ctrl.client(replica.node).has(bytes.fromhex(replica.sha256)))
+        self.assertEqual(ctrl.garbage_collect()["removed_replicas"], 12)
+        for replica in replicas:
+            self.assertFalse(ctrl.client(replica.node).has(bytes.fromhex(replica.sha256)))
+        file.refresh_from_db()
+        self.assertEqual(file.latest_version, 1)
+        self.assertEqual(file.versions.count(), 1)
+        self.assertEqual(services.read_all(self.alice, file), b"original")
+
+    def test_failed_restore_keeps_manifest_tracked_for_cleanup(self):
+        from django.db import IntegrityError
+        from files.models import Chunk
+        from storage.controller import StorageController
+        from storage.models import ChunkLocation
+
+        file = self.upload(self.alice, b"original")
+        services.upload_version(self.alice, file, SimpleUploadedFile("v2", b"edited"))
+        existing = set(ChunkLocation.objects.values_list("pk", flat=True))
+        for target, error in (
+            ("coordination.conventional.ConventionalCoordinator.add_version", CoordinationError("registration failed")),
+            ("files.services.Chunk.objects.bulk_create", IntegrityError("metadata failed")),
+        ):
+            with self.subTest(target=target):
+                with patch(target, side_effect=error), self.assertRaises(type(error)):
+                    services.restore_version(self.alice, file, 1)
+                # The new version's metadata is removed, but its manifest remains
+                # tracked so GC can delete the actual data on the nodes.
+                file.refresh_from_db()
+                self.assertEqual(file.latest_version, 2)
+                self.assertEqual(file.versions.count(), 2)
+                self.assertFalse(Chunk.objects.filter(version__file=file, version__number=3).exists())
+                replicas = list(ChunkLocation.objects.exclude(pk__in=existing).select_related("node"))
+                self.assertEqual(len(replicas), 2)
+                ctrl = StorageController()
+                self.assertEqual(ctrl.garbage_collect()["removed_replicas"], 2)
+                for replica in replicas:
+                    self.assertFalse(ctrl.client(replica.node).has(bytes.fromhex(replica.sha256)))
+                self.assertEqual(services.read_all(self.alice, file, 1), b"original")
+                self.assertEqual(services.read_all(self.alice, file), b"edited")
+
+    def test_upload_and_restore_storage_calls_run_outside_transactions(self):
+        from django.db import connection
+        from storage.controller import StorageController
+
+        file = self.upload(self.alice, b"original")
+        upload, fetch, store_blob = StorageController.upload, StorageController.fetch, StorageController.store_blob
+
+        def outside_transaction(fn):
+            def checked(*args, **kwargs):
+                self.assertFalse(connection.in_atomic_block, fn.__name__)
+                return fn(*args, **kwargs)
+            return checked
+
+        with patch.object(StorageController, "upload", autospec=True, side_effect=outside_transaction(upload)), \
+             patch.object(StorageController, "fetch", autospec=True, side_effect=outside_transaction(fetch)), \
+             patch.object(StorageController, "store_blob", autospec=True, side_effect=outside_transaction(store_blob)):
+            services.upload_version(self.alice, file, SimpleUploadedFile("v2", b"edited"))
+            restored = services.restore_version(self.alice, file, 1)
+        self.assertEqual(restored.number, 3)
+
     def test_restore_preserves_history_and_reuses_chunks(self):
         self.restore_scenario()
 
