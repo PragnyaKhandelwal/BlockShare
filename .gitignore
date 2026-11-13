@@ -9,6 +9,24 @@ venv/
 var/
 *.sqlite3
 .env
+.env.*
+!.env.example
+
+# test / tooling output
+.coverage
+htmlcov/
+.pytest_cache/
+*.log
+
+# local documents (synopsis, reports, slides) — submitted separately, not source
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+~$*
 
 # Node / Hardhat
 node_modules/
