@@ -18,6 +18,10 @@ class UploadForm(forms.Form):
     comment = forms.CharField(max_length=200, required=False)
 
 
+class RestoreVersionForm(forms.Form):
+    version = forms.IntegerField(min_value=1)
+
+
 class ShareForm(forms.Form):
     username = forms.CharField(max_length=150)
     permission = forms.ChoiceField(choices=[("read", "Read"), ("write", "Read / Write")])

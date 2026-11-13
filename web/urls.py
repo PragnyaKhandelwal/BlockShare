@@ -20,6 +20,7 @@ urlpatterns = [
     path("files/<uuid:pk>/transfer/", views.file_transfer, name="file_transfer"),
     path("files/<uuid:pk>/delete/", views.file_delete, name="file_delete"),
     path("files/<uuid:pk>/versions/", views.file_new_version, name="file_new_version"),
+    path("files/<uuid:pk>/restore/", views.file_restore, name="file_restore"),
     path("files/<uuid:pk>/verify/", views.file_verify, name="file_verify"),
     path("files/<uuid:pk>/corrupt/", views.file_corrupt, name="file_corrupt"),
     path("upload/", views.upload, name="upload"),
