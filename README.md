@@ -93,6 +93,23 @@ To use real machines on a LAN, start a node on each one and add it from the Stor
 python -m storage_node --node-id node-b --port 9000 --advertise-host 192.168.1.102 --peers 192.168.1.101:10000 --cluster-key <shared secret>
 ```
 
+## Restore an older file version
+
+Open **My Files**, select a file, then select an older version in its version history.
+As the owner, click **Restore vN** and confirm. BlockShare creates a new latest version
+with the selected version's contents and a `Restored from vN` comment. All earlier
+versions stay available. The page then displays the new latest version; click
+**Download** to download the restored contents. Shared users also get those contents
+when downloading the latest version.
+
+If you only need a personal copy of an older version, download it directly instead.
+Restoration reuses existing stored chunks and works in conventional and blockchain
+modes. It fails if the source content is unavailable or fails integrity checks.
+
+REST clients can use `POST /api/files/<file-id>/restore/` with `{"version": 1}`.
+Only the owner can restore, and the selected version must not already be current.
+The API returns the new version with HTTP 201.
+
 ## Deployment
 
 The live demo is deployed on Render from [`render.yaml`](render.yaml). The [`Dockerfile`](Dockerfile) builds a single container that runs everything under supervisord: an Anvil chain, three storage nodes, the monitor, and Django behind Gunicorn. Any Docker host works the same way:

@@ -119,6 +119,20 @@ class FileViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Destr
             return _error(exc)
         return Response(s.VersionSerializer(version).data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(request=s.RestoreVersionSerializer, responses={201: s.VersionSerializer})
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        ser = s.RestoreVersionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            file, _ = self._file(pk)
+            version = services.restore_version(request.user, file, ser.validated_data["version"])
+        except CoordinationError as exc:
+            return _error(exc, 403)
+        except services.ServiceError as exc:
+            return _error(exc)
+        return Response(s.VersionSerializer(version).data, status=status.HTTP_201_CREATED)
+
     @extend_schema(responses={200: bytes})
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):

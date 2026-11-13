@@ -27,7 +27,7 @@ from storage.monitor import check_nodes
 from storage.ring import HashRing
 from storage_node.client import NodeClient, NodeError
 
-from .forms import NodeForm, RegisterForm, SettingsForm, ShareForm, UploadForm, UsernameForm
+from .forms import NodeForm, RegisterForm, RestoreVersionForm, SettingsForm, ShareForm, UploadForm, UsernameForm
 
 
 NODE_COLORS = ["#1f5fbf", "#0e9384", "#b54708", "#6941c6", "#c11574", "#475467", "#027a48", "#9e77ed"]
@@ -269,6 +269,24 @@ def file_delete(request, pk):
         messages.error(request, str(exc))
         return redirect("file_detail", pk=pk)
     return redirect("files")
+
+
+@login_required
+@require_POST
+def file_restore(request, pk):
+    file, _ = _load(request, pk)
+    form = RestoreVersionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose a valid version to restore.")
+        return redirect("file_detail", pk=pk)
+    try:
+        version = services.restore_version(request.user, file, form.cleaned_data["version"])
+    except (services.ServiceError, CoordinationError) as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Restored v{form.cleaned_data['version']} as v{version.number}. "
+                                 "It is now the latest version. Download it below.")
+    return redirect("file_detail", pk=pk)
 
 
 @login_required

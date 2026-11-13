@@ -85,6 +85,10 @@ class UploadSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False, allow_blank=True, max_length=200)
 
 
+class RestoreVersionSerializer(serializers.Serializer):
+    version = serializers.IntegerField(min_value=1)
+
+
 class NodeSerializer(serializers.ModelSerializer):
     endpoint = serializers.CharField(read_only=True)
 

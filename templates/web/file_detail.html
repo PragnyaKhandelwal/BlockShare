@@ -50,6 +50,13 @@
     <div class="actions" style="margin-top:12px">
       {% for v in versions %}<a class="btn sm {% if v.number == version.number %}primary{% endif %}" href="?v={{ v.number }}">v{{ v.number }}</a>{% endfor %}
     </div>
+    {% if perm == "owner" and version.number != file.latest_version %}
+    <p class="muted small">Restore this version to make its contents the latest version for everyone with access. All previous versions will stay in history.</p>
+    <form method="post" action="{% url 'file_restore' file.pk %}" data-confirm="Restore v{{ version.number }} as a new latest version? All previous versions will be preserved.">
+      {% csrf_token %}<input type="hidden" name="version" value="{{ version.number }}">
+      <button class="btn">Restore v{{ version.number }}</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 
