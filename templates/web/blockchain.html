@@ -14,7 +14,130 @@
   <div class="stat"><span class="icon-tile tone-teal"><svg class="ic"><use href="#i-zap"/></svg></span><div class="body"><div class="label">Transactions Sent</div><div class="value">{{ txs|length }}</div><div class="hint">by BlockShare (latest 30)</div></div></div>
   <div class="stat"><span class="icon-tile {% if config.blockchain_enabled %}tone-green{% else %}tone-slate{% endif %}"><svg class="ic"><use href="#i-shield"/></svg></span><div class="body"><div class="label">Mode</div><div class="value text">{% if config.blockchain_enabled %}Authoritative{% else %}Standby{% endif %}</div><div class="hint">{% if config.blockchain_enabled %}contracts coordinate files{% else %}Django coordinates; chain idle{% endif %}</div></div></div>
 </div>
+<section class="card" style="margin-bottom: 20px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h2 style="margin:0 0 6px 0;">MetaMask Wallet Linkage</h2>
+      <p class="muted" style="margin:0;">
+        Link your browser MetaMask wallet to sign in without a password while keeping your server custodial wallet for on-chain transactions.
+      </p>
+    </div>
+    <div>
+      {% if request.user.profile.metamask_address %}
+        <button type="button" id="mm-unlink-btn" class="btn">Unlink MetaMask</button>
+      {% else %}
+        <button type="button" id="mm-link-btn" class="btn primary">🦊 Link MetaMask Wallet</button>
+      {% endif %}
+    </div>
+  </div>
 
+  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+    <div style="padding:12px;border:1px solid var(--border, rgba(128,128,128,.2));border-radius:8px;">
+      <div class="small muted">Server Custodial Wallet (On-Chain Signing)</div>
+      <code style="word-break:break-all;">{{ request.user.profile.eth_address }}</code>
+    </div>
+    <div style="padding:12px;border:1px solid var(--border, rgba(128,128,128,.2));border-radius:8px;">
+      <div class="small muted">Linked MetaMask Wallet (Sign-In)</div>
+      {% if request.user.profile.metamask_address %}
+        <code style="word-break:break-all;">{{ request.user.profile.metamask_address }}</code>
+      {% else %}
+        <span class="muted">Not linked</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <ul class="messages" id="mm-link-messages" style="display:none;margin-top:12px;">
+    <li class="error" id="mm-link-error-text"></li>
+  </ul>
+</section>
+
+<script>
+(function () {
+  const linkBtn = document.getElementById("mm-link-btn");
+  const unlinkBtn = document.getElementById("mm-unlink-btn");
+  const msgBox = document.getElementById("mm-link-messages");
+  const msgText = document.getElementById("mm-link-error-text");
+
+  function getCsrf() {
+    return document.querySelector("[name=csrfmiddlewaretoken]")?.value
+      || document.cookie.match(/csrftoken=([^;]+)/)?.[1]
+      || "";
+  }
+
+  function showError(msg) {
+    msgText.textContent = msg;
+    msgBox.style.display = "block";
+  }
+
+  linkBtn?.addEventListener("click", async () => {
+    msgBox.style.display = "none";
+    if (typeof window.ethereum === "undefined") {
+      showError("MetaMask is not installed in this browser.");
+      return;
+    }
+
+    const originalLabel = linkBtn.textContent;
+    linkBtn.disabled = true;
+    linkBtn.textContent = "Connecting MetaMask...";
+
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const address = accounts[0];
+      if (!address) throw new Error("No MetaMask account selected.");
+
+      const nonceRes = await fetch(
+        `{% url 'metamask_nonce' %}?address=${encodeURIComponent(address)}&mode=link`
+      );
+      const nonceData = await nonceRes.json();
+      if (!nonceRes.ok) throw new Error(nonceData.error || "Could not create link challenge.");
+
+      linkBtn.textContent = "Sign in MetaMask...";
+      const signature = await window.ethereum.request({
+        method: "personal_sign",
+        params: [nonceData.message, address],
+      });
+
+      linkBtn.textContent = "Linking...";
+      const linkRes = await fetch("{% url 'metamask_link' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrf(),
+        },
+        body: JSON.stringify({ address, signature }),
+      });
+      const linkData = await linkRes.json();
+      if (!linkRes.ok) throw new Error(linkData.error || "Wallet linking failed.");
+
+      window.location.reload();
+    } catch (err) {
+      showError(err.message || "Wallet linking cancelled.");
+      linkBtn.disabled = false;
+      linkBtn.textContent = originalLabel;
+    }
+  });
+
+  unlinkBtn?.addEventListener("click", async () => {
+    msgBox.style.display = "none";
+    unlinkBtn.disabled = true;
+    try {
+      const res = await fetch("{% url 'metamask_link' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrf(),
+        },
+        body: JSON.stringify({ unlink: true }),
+      });
+      if (!res.ok) throw new Error("Could not unlink MetaMask wallet.");
+      window.location.reload();
+    } catch (err) {
+      showError(err.message);
+      unlinkBtn.disabled = false;
+    }
+  });
+})();
+</script>
 <div class="grid g2">
   <div class="card">
     <h2>Smart Contracts</h2>
