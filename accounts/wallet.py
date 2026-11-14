@@ -1,4 +1,4 @@
-"""Custodial wallet management (key generation, encryption at rest)."""
+"""Custodial wallet management (key generation, encryption at rest) and MetaMask auth."""
 import base64
 import hashlib
 
@@ -6,6 +6,8 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from django.db import IntegrityError
 from eth_account import Account
+from eth_account.messages import encode_defunct
+from web3 import Web3
 
 from .models import Profile
 
@@ -41,3 +43,33 @@ def user_for_address(address: str):
     if not address:
         return None
     return get_user_model().objects.filter(profile__eth_address__iexact=address).first()
+
+
+def user_for_metamask_address(address: str):
+    from django.contrib.auth import get_user_model
+
+    if not address:
+        return None
+    return get_user_model().objects.filter(profile__metamask_address__iexact=address).first()
+
+
+def build_metamask_challenge(address: str, nonce: str, action: str = "Sign in to") -> str:
+    checksum_addr = Web3.to_checksum_address(address)
+    return (
+        f"{action} BlockShare\n\n"
+        f"Wallet: {checksum_addr}\n"
+        f"Nonce: {nonce}"
+    )
+
+
+def verify_metamask_signature(
+    address: str, signature: str, nonce: str, action: str = "Sign in to"
+) -> bool:
+    try:
+        checksum_addr = Web3.to_checksum_address(address)
+        message_text = build_metamask_challenge(checksum_addr, nonce, action=action)
+        message = encode_defunct(text=message_text)
+        recovered = Account.recover_message(message, signature=signature)
+        return Web3.to_checksum_address(recovered) == checksum_addr
+    except Exception:
+        return False
