@@ -123,6 +123,13 @@ To use a public test network instead of the built-in chain, set `BLOCKCHAIN_RPC_
 
 ## Tests
 
+The upload page displays bytes sent, average transfer speed, and approximate time
+remaining for the browser-to-server transfer. Once that transfer completes, it
+shows a separate processing stage until the server responds. Estimates reset on
+failure and retry; server processing time is not included in the ETA.
+
+Run the upload progress calculation tests with `node --test tests/upload_progress.test.js`.
+
 ```bash
 cd blockchain && npx hardhat test      # smart contracts
 python manage.py test tests            # protocol, cluster, services, API, pages; blockchain mode if a chain is running

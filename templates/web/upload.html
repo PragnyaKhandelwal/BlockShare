@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Upload{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1>Upload Files</h1><div class="sub">Split, distribute and store your files across the network.</div></div></div>
@@ -19,7 +20,9 @@
           <p id="upload-status" class="muted small" style="margin:0" aria-live="polite"></p>
           <button type="submit" class="btn primary lg"><svg class="ic sm"><use href="#i-upload"/></svg>Start Upload</button>
         </div>
-        <div class="progress"><div id="progress-bar"></div></div>
+        <div class="progress" id="upload-progress" role="progressbar" aria-label="Upload to server" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-bar"></div></div>
+        <p id="upload-metrics" class="muted small" role="status" aria-live="polite"></p>
+        <p class="muted small">Speed and estimated time remaining cover the upload to the server. File processing continues afterward.</p>
       </form>
     </div>
     <div class="card">
@@ -50,3 +53,4 @@
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/upload-progress.js' %}"></script>{% endblock %}
