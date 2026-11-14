@@ -20,12 +20,21 @@
       <h1>Welcome back</h1>
       <p class="muted">Sign in to your BlockShare account to continue.</p>
       {% if form.errors %}<ul class="messages"><li class="error">That username and password don't match.</li></ul>{% endif %}
+      <ul class="messages" id="mm-messages" style="display:none"><li class="error" id="mm-error-text"></li></ul>
       <form method="post" style="margin-top:20px">{% csrf_token %}
         <div class="field"><label for="id_username">Username</label><input type="text" name="username" id="id_username" autocomplete="username" placeholder="alice" autofocus required></div>
         <div class="field"><label for="id_password">Password</label><input type="password" name="password" id="id_password" autocomplete="current-password" placeholder="••••••••" required></div>
         <input type="hidden" name="next" value="{{ next }}">
         <button class="btn primary">Sign in<svg class="ic sm"><use href="#i-arrow-right"/></svg></button>
       </form>
+      <div style="display:flex;align-items:center;gap:12px;margin:16px 0;opacity:.6;font-size:.82rem">
+        <span style="flex:1;height:1px;background:currentColor;opacity:.25"></span>
+        <span>OR</span>
+        <span style="flex:1;height:1px;background:currentColor;opacity:.25"></span>
+      </div>
+      <button type="button" id="mm-signin-btn" class="btn" style="width:100%;justify-content:center">
+        🦊 Sign in with MetaMask
+      </button>
       <p class="small muted" style="margin-top:18px;text-align:center">New here? <a href="{% url 'register' %}">Create an account</a></p>
       <div class="demo-users">
         <svg class="ic sm"><use href="#i-users"/></svg>
@@ -35,5 +44,69 @@
   </main>
 </div>
 <script src="{% static 'js/app.js' %}"></script>
+<script>
+(function () {
+  const btn = document.getElementById("mm-signin-btn");
+  const msgBox = document.getElementById("mm-messages");
+  const msgText = document.getElementById("mm-error-text");
+
+  function showError(msg) {
+    msgText.textContent = msg;
+    msgBox.style.display = "block";
+  }
+  document.querySelector("form")?.addEventListener("submit", function () {
+  const submitBtn = this.querySelector("button[type=submit], button:not([type])");
+  if (submitBtn) submitBtn.disabled = true;
+});
+  btn?.addEventListener("click", async () => {
+    msgBox.style.display = "none";
+    if (typeof window.ethereum === "undefined") {
+      showError("MetaMask is not installed in this browser.");
+      return;
+    }
+
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Connecting MetaMask...";
+
+    try {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const address = accounts[0];
+      if (!address) throw new Error("No MetaMask account selected.");
+
+      const nonceRes = await fetch(
+        `{% url 'metamask_nonce' %}?address=${encodeURIComponent(address)}&mode=login`
+      );
+      const nonceData = await nonceRes.json();
+      if (!nonceRes.ok) throw new Error(nonceData.error || "Could not create sign-in challenge.");
+
+      btn.textContent = "Sign message in MetaMask...";
+      const signature = await window.ethereum.request({
+        method: "personal_sign",
+        params: [nonceData.message, address],
+      });
+
+      btn.textContent = "Verifying...";
+      const csrf = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+      const verifyRes = await fetch("{% url 'metamask_verify' %}", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrf,
+        },
+        body: JSON.stringify({ address, signature }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.error || "MetaMask verification failed.");
+
+      window.location.href = verifyData.redirect || "{% url 'dashboard' %}";
+    } catch (err) {
+      showError(err.message || "MetaMask sign-in cancelled.");
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  });
+})();
+</script>
 </body>
 </html>
