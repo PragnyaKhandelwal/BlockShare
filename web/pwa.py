@@ -24,6 +24,7 @@ BACKGROUND = "#0b1222"
 PRECACHE_STATIC = [
     "css/app.css",
     "js/app.js",
+    "js/upload-progress.js",
     "img/favicon.svg",
     "img/icon.svg",
     "img/icon-192.png",

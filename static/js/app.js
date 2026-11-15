@@ -190,6 +190,8 @@
   const input = form.querySelector("input[type=file]");
   const label = document.getElementById("drop-label");
   const bar = document.getElementById("progress-bar");
+  const progress = document.getElementById("upload-progress");
+  const metrics = document.getElementById("upload-metrics");
   const status = document.getElementById("upload-status");
   const button = form.querySelector("button[type=submit]");
 
@@ -225,34 +227,53 @@
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (button.disabled) return;
     if (!input.files.length) {
       status.textContent = "Choose a file first.";
       return;
     }
     const xhr = new XMLHttpRequest();
+    const started = performance.now();
+    const setProgress = (pct) => {
+      bar.style.width = (pct === null ? 0 : pct) + "%";
+      if (pct === null) progress.removeAttribute("aria-valuenow");
+      else progress.setAttribute("aria-valuenow", pct);
+    };
+    const processing = () => {
+      setProgress(100);
+      metrics.textContent = "";
+      status.textContent = "Chunking, hashing, replicating to storage nodes" + (form.dataset.mode === "blockchain" ? " and registering on-chain…" : "…");
+    };
+    const failed = (message) => {
+      button.disabled = false;
+      setProgress(0);
+      metrics.textContent = "";
+      status.textContent = message;
+    };
+    setProgress(0);
+    metrics.textContent = "Calculating speed…";
+    status.textContent = "Sending to server…";
     xhr.open("POST", form.action);
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable) {
-        const pct = Math.round((ev.loaded / ev.total) * 100);
-        bar.style.width = pct + "%";
-        status.textContent = pct < 100
-          ? `Sending to coordinator… ${pct}%`
-          : "Chunking, hashing, replicating to storage nodes" + (form.dataset.mode === "blockchain" ? " and registering on-chain…" : "…");
-      }
+      const info = window.BSUploadProgress.describe(ev.loaded, ev.lengthComputable ? ev.total : null,
+                                                    performance.now() - started);
+      setProgress(info.percent);
+      metrics.textContent = info.text;
+      status.textContent = info.percent === null ? "Sending to server…" : `Sending to server… ${info.percent}%`;
+      if (info.complete) processing();
     };
+    xhr.upload.onload = processing;
     xhr.onload = () => {
       let data = {};
       try { data = JSON.parse(xhr.responseText); } catch (err) { /* not json */ }
       if (xhr.status === 200 && data.ok) {
         window.location = data.redirect;
       } else {
-        button.disabled = false;
-        bar.style.width = "0";
-        status.textContent = "Upload failed: " + (data.error || xhr.statusText);
+        failed("Upload failed: " + (data.error || xhr.statusText));
       }
     };
-    xhr.onerror = () => { button.disabled = false; status.textContent = "Network error during upload."; };
+    xhr.onerror = () => failed("Network error during upload.");
     button.disabled = true;
     xhr.send(new FormData(form));
   });
