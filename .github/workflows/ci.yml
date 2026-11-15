@@ -60,6 +60,7 @@ jobs:
     name: Deploy to Render
     needs: [contracts, backend, docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render deploy hook
