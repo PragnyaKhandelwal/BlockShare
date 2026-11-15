@@ -1,13 +1,14 @@
 import json
 import math
 import secrets
+import time
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Avg, Count, Sum
 from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -71,27 +72,31 @@ def register(request):
 
 
 
+NONCE_TTL_SECONDS = 300
+
+
 @require_GET
 def metamask_nonce(request):
     raw_address = request.GET.get("address", "").strip()
-    mode = request.GET.get("mode", "login")  # "login" or "link"
+    mode = request.GET.get("mode", "login")
 
+    if mode not in ("login", "link"):
+        return JsonResponse({"error": "Invalid challenge mode."}, status=400)
     if not Web3.is_address(raw_address):
         return JsonResponse({"error": "Invalid Ethereum address."}, status=400)
 
     address = Web3.to_checksum_address(raw_address)
-    action = "Link wallet to" if mode == "link" else "Sign in to"
+    nonce = generate_nonce()
+    now = int(time.time())
 
-    if mode == "link" and request.user.is_authenticated:
-        profile = ensure_wallet(request.user)
-        nonce = profile.rotate_nonce()
+    if mode == "link":
+        if not request.user.is_authenticated:
+            return JsonResponse({"error": "Authentication required to link a wallet."}, status=401)
+        request.session[f"mm_link_nonce:{address.lower()}"] = {"nonce": nonce, "ts": now}
+        action = "Link wallet to"
     else:
-        linked_user = user_for_metamask_address(address)
-        if linked_user:
-            nonce = ensure_wallet(linked_user).rotate_nonce()
-        else:
-            nonce = generate_nonce()
-            request.session[f"mm_nonce:{address.lower()}"] = nonce
+        request.session[f"mm_login_nonce:{address.lower()}"] = {"nonce": nonce, "ts": now}
+        action = "Sign in to"
 
     message = build_metamask_challenge(address, nonce, action=action)
     return JsonResponse({"address": address, "nonce": nonce, "message": message})
@@ -111,52 +116,53 @@ def metamask_verify(request):
         return JsonResponse({"error": "Address and signature are required."}, status=400)
 
     address = Web3.to_checksum_address(raw_address)
-    linked_user = user_for_metamask_address(address)
+    session_key = f"mm_login_nonce:{address.lower()}"
+    challenge = request.session.pop(session_key, None)
 
-    if linked_user:
-        profile = ensure_wallet(linked_user)
-        nonce = profile.login_nonce
-    else:
-        profile = None
-        nonce = request.session.get(f"mm_nonce:{address.lower()}")
+    if not challenge or (int(time.time()) - challenge.get("ts", 0)) > NONCE_TTL_SECONDS:
+        return JsonResponse({"error": "Sign-in challenge expired or missing. Please try again."}, status=401)
 
-    if not nonce or not verify_metamask_signature(address, signature, nonce, action="Sign in to"):
+    if not verify_metamask_signature(address, signature, challenge["nonce"], action="Sign in to"):
         return JsonResponse({"error": "MetaMask signature verification failed."}, status=401)
 
-    with transaction.atomic():
-        if linked_user:
-            user = linked_user
-            profile.rotate_nonce()
-        else:
-            User = get_user_model()
-            short = f"{address[:6].lower()}_{address[-4:].lower()}"
-            username = f"mm_{short}"
-            if User.objects.filter(username=username).exists():
-                username = f"mm_{short}_{secrets.token_hex(2)}"
+    linked_user = user_for_metamask_address(address)
+    if linked_user:
+        user = linked_user
+        profile = ensure_wallet(user)
+    else:
+        User = get_user_model()
+        short = f"{address[:6].lower()}_{address[-4:].lower()}"
+        username = f"mm_{short}"
+        if User.objects.filter(username=username).exists():
+            username = f"mm_{short}_{secrets.token_hex(2)}"
 
-            user = User.objects.create_user(username=username, password=None)
-            user.set_unusable_password()
-            user.save()
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(username=username, password=None)
+                user.set_unusable_password()
+                user.save()
 
+                profile = ensure_wallet(user)
+                profile.metamask_address = address
+                profile.save(update_fields=["metamask_address"])
+        except IntegrityError:
+            user = user_for_metamask_address(address)
+            if not user:
+                return JsonResponse({"error": "Account creation conflict. Please try again."}, status=409)
             profile = ensure_wallet(user)
-            profile.metamask_address = address
-            profile.login_nonce = generate_nonce()
-            profile.save(update_fields=["metamask_address", "login_nonce"])
-            request.session.pop(f"mm_nonce:{address.lower()}", None)
+        else:
             messages.success(
                 request,
                 f"Welcome {user.username}! Linked MetaMask ({address[:8]}...) to your custodial wallet ({profile.eth_address}).",
             )
 
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    token, _ = Token.objects.get_or_create(user=user)
 
     return JsonResponse({
         "ok": True,
         "username": user.username,
         "metamask_address": address,
         "custodial_address": profile.eth_address,
-        "token": token.key,
         "redirect": reverse("dashboard"),
     })
 
@@ -172,8 +178,12 @@ def metamask_link(request):
     profile = ensure_wallet(request.user)
 
     if payload.get("unlink"):
+        if not request.user.has_usable_password():
+            return JsonResponse(
+                {"error": "Cannot unlink MetaMask because this account has no password set."},
+                status=400,
+            )
         profile.metamask_address = None
-        profile.rotate_nonce()
         profile.save(update_fields=["metamask_address"])
         messages.info(request, "MetaMask wallet unlinked from your account.")
         return JsonResponse({"ok": True, "metamask_address": None})
@@ -185,16 +195,24 @@ def metamask_link(request):
         return JsonResponse({"error": "Address and signature are required."}, status=400)
 
     address = Web3.to_checksum_address(raw_address)
+    session_key = f"mm_link_nonce:{address.lower()}"
+    challenge = request.session.pop(session_key, None)
+
+    if not challenge or (int(time.time()) - challenge.get("ts", 0)) > NONCE_TTL_SECONDS:
+        return JsonResponse({"error": "Wallet link challenge expired or missing. Please try again."}, status=401)
 
     if Profile.objects.filter(metamask_address__iexact=address).exclude(pk=profile.pk).exists():
         return JsonResponse({"error": "This MetaMask wallet is already linked to another account."}, status=409)
 
-    if not verify_metamask_signature(address, signature, profile.login_nonce, action="Link wallet to"):
+    if not verify_metamask_signature(address, signature, challenge["nonce"], action="Link wallet to"):
         return JsonResponse({"error": "Invalid signature for wallet linking."}, status=401)
 
-    profile.metamask_address = address
-    profile.rotate_nonce()
-    profile.save(update_fields=["metamask_address"])
+    try:
+        profile.metamask_address = address
+        profile.save(update_fields=["metamask_address"])
+    except IntegrityError:
+        return JsonResponse({"error": "This MetaMask wallet is already linked to another account."}, status=409)
+
     messages.success(request, f"Linked MetaMask wallet {address} to your account.")
 
     return JsonResponse({
@@ -202,7 +220,7 @@ def metamask_link(request):
         "metamask_address": profile.metamask_address,
         "custodial_address": profile.eth_address,
     })
-
+    
 # ---------------------------------------------------------------- pages
 
 def home(request):
