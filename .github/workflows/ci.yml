@@ -42,8 +42,8 @@ jobs:
           npx hardhat node --hostname 127.0.0.1 --port 8545 > /tmp/hardhat.log 2>&1 &
           for i in $(seq 1 60); do curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' http://127.0.0.1:8545 && break; sleep 1; done
       - run: python manage.py check
-      - name: Upload progress calculations
-        run: node --test tests/upload_progress.test.js
+      - name: Upload progress and cancellation
+        run: node --test tests/*.test.js
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py test tests -v 2
         env:
