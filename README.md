@@ -128,10 +128,12 @@ remaining for the browser-to-server transfer. Once that transfer completes, it
 shows a separate processing stage until the server responds. Estimates reset on
 failure and retry; server processing time is not included in the ETA.
 
-The upload page also offers **Cancel upload** while the browser is sending the
-file. Cancelling aborts that browser request, clears progress, and keeps the
+The same **Start Upload** button changes to **Cancel Upload** while the browser
+is sending the file, then to disabled **Processing…** once sending finishes.
+Cancelling aborts that browser request, clears progress, and keeps the
 selected file and comment available to upload again from the beginning. Late
-events from the cancelled request cannot interfere with a retry.
+events from the cancelled request cannot interfere with a retry. After cancellation
+or an error, the button returns to **Start Upload** in the same location.
 
 Cancellation is disabled once the browser finishes sending and server processing
 starts. Aborting a browser request cannot undo work the server has already begun:

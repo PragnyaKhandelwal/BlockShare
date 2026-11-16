@@ -23,7 +23,7 @@ function page({ sendThrows = false } = {}) {
     querySelector() { return null; }
   }
   const ids = Object.fromEntries(["upload-form", "dropzone", "drop-label", "progress-bar",
-    "upload-progress", "upload-metrics", "upload-status", "cancel-upload"].map(id => [id, new Element()]));
+    "upload-progress", "upload-metrics", "upload-status"].map(id => [id, new Element()]));
   const input = new Element(), submit = new Element(), browse = new Element(), comment = new Element();
   input.files = [{ name: "report.txt" }]; comment.value = "first draft";
   const form = ids["upload-form"];
@@ -46,7 +46,7 @@ function page({ sendThrows = false } = {}) {
     FormData: class { constructor() { this.file = input.disabled ? null : input.files[0];
       this.comment = comment.disabled ? null : comment.value; } } });
   return { ...ids, form, input, submit, browse, comment, requests, window,
-    cancel: ids["cancel-upload"], status: ids["upload-status"], metrics: ids["upload-metrics"] };
+    status: ids["upload-status"], metrics: ids["upload-metrics"] };
 }
 
 test("cancel aborts the transfer, clears estimates and retains the file for retry", () => {
@@ -56,13 +56,15 @@ test("cancel aborts the transfer, clears estimates and retains the file for retr
   assert.equal(xhr.body.file.name, "report.txt");
   assert.equal(xhr.body.comment, "first draft");
   assert.equal(p.input.disabled, true);
-  assert.equal(p.cancel.disabled, false);
+  assert.equal(p.submit.textContent, "Cancel Upload");
+  assert.equal(p.submit.type, "button");
   p.metrics.textContent = "~8s remaining";
-  p.cancel.fire("click");
+  p.submit.fire("click");
   assert.equal(xhr.aborted, true);
   assert.equal(p.submit.disabled, false);
   assert.equal(p.input.disabled, false);
-  assert.equal(p.cancel.disabled, true);
+  assert.equal(p.submit.textContent, "Start Upload");
+  assert.equal(p.submit.type, "submit");
   assert.equal(p.metrics.textContent, "");
   assert.equal(p["upload-progress"].getAttribute("aria-valuenow"), "0");
   assert.equal(p.input.files[0].name, "report.txt");
@@ -74,14 +76,15 @@ test("late events from a cancelled request cannot change or redirect a retry", (
   const p = page();
   p.form.fire("submit");
   const old = p.requests[0];
-  p.cancel.fire("click");
+  p.submit.fire("click");
   p.form.fire("submit");
   old.upload.onprogress({ loaded: 100, total: 100, lengthComputable: true });
   old.upload.onload(); old.onerror(); old.onabort();
   old.status = 200; old.responseText = JSON.stringify({ ok: true, redirect: "/wrong/" }); old.onload();
   assert.equal(p.window.location, "unchanged");
-  assert.equal(p.submit.disabled, true);
-  assert.equal(p.cancel.disabled, false);
+  assert.equal(p.submit.disabled, false);
+  assert.equal(p.submit.textContent, "Cancel Upload");
+  assert.equal(p.submit.type, "button");
   assert.equal(p.status.textContent, "Sending to server…");
   p.requests[1].status = 200;
   p.requests[1].responseText = JSON.stringify({ ok: true, redirect: "/files/right/" });
@@ -94,8 +97,9 @@ test("processing disables cancellation for known and unknown upload totals", () 
                             xhr => xhr.upload.onload()]) {
     const p = page(); p.form.fire("submit");
     const xhr = p.requests[0]; completion(xhr);
-    assert.equal(p.cancel.disabled, true);
-    p.cancel.fire("click");
+    assert.equal(p.submit.textContent, "Processing…");
+    assert.equal(p.submit.type, "button");
+    p.submit.fire("click");
     assert.equal(xhr.aborted, undefined);
     assert.equal(p.submit.disabled, true);
     assert.match(p.status.textContent, /Chunking/);
@@ -117,7 +121,8 @@ test("network errors, server errors and unexpected aborts release controls", () 
   }]) {
     const p = page(); p.form.fire("submit"); fail(p.requests[0]);
     assert.equal(p.submit.disabled, false);
-    assert.equal(p.cancel.disabled, true);
+    assert.equal(p.submit.textContent, "Start Upload");
+    assert.equal(p.submit.type, "submit");
     assert.equal(p.input.disabled, false);
     p.form.fire("submit"); assert.equal(p.requests.length, 2);
   }
@@ -125,9 +130,10 @@ test("network errors, server errors and unexpected aborts release controls", () 
 
 test("cancel before starting is harmless and send failures allow retry", () => {
   const p = page({ sendThrows: true });
-  p.cancel.fire("click"); assert.equal(p.requests.length, 0);
+  p.submit.fire("click"); assert.equal(p.requests.length, 0);
   p.form.fire("submit");
   assert.equal(p.submit.disabled, false);
-  assert.equal(p.cancel.disabled, true);
+  assert.equal(p.submit.textContent, "Start Upload");
+  assert.equal(p.submit.type, "submit");
   assert.match(p.status.textContent, /Could not start/);
 });

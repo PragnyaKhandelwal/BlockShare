@@ -194,11 +194,16 @@
   const metrics = document.getElementById("upload-metrics");
   const status = document.getElementById("upload-status");
   const button = form.querySelector("button[type=submit]");
-  const cancel = document.getElementById("cancel-upload");
   const browse = zone.querySelector("button");
   const comment = form.querySelector("input[name=comment]");
   let activeUpload = null;
-  cancel.hidden = false;
+  const setAction = (phase) => {
+    button.type = phase === "idle" ? "submit" : "button";
+    button.disabled = phase === "processing";
+    button.textContent = phase === "sending" ? "Cancel Upload" : phase === "processing" ? "Processing…" : "Start Upload";
+    button.classList.toggle("danger", phase === "sending");
+    button.classList.toggle("primary", phase !== "sending");
+  };
 
   const setProgress = (pct) => {
     bar.style.width = (pct === null ? 0 : pct) + "%";
@@ -206,13 +211,12 @@
     else progress.setAttribute("aria-valuenow", pct);
   };
   const setBusy = (busy) => {
-    button.disabled = busy;
+    setAction(busy ? "sending" : "idle");
     input.disabled = busy;
     browse.disabled = busy;
     comment.disabled = busy;
     zone.setAttribute("aria-disabled", String(busy));
     form.setAttribute("aria-busy", String(busy));
-    cancel.disabled = !busy;
   };
   const finish = (message) => {
     activeUpload = null;
@@ -221,8 +225,9 @@
     metrics.textContent = "";
     status.textContent = message;
   };
-  cancel.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
     if (!activeUpload || activeUpload.phase !== "sending") return;
+    event.preventDefault();
     const xhr = activeUpload.xhr;
     // Invalidate this request first: abort and queued events must not change a retry.
     finish("Transfer cancelled. You can upload the selected file again. If the server already received it, it may still appear in My Files; check there before retrying.");
@@ -276,7 +281,7 @@
     const processing = () => {
       if (!current()) return;
       request.phase = "processing";
-      cancel.disabled = true;
+      setAction("processing");
       setProgress(100);
       metrics.textContent = "";
       status.textContent = "Chunking, hashing, replicating to storage nodes" + (form.dataset.mode === "blockchain" ? " and registering on-chain…" : "…");
@@ -305,7 +310,7 @@
       try { data = JSON.parse(xhr.responseText); } catch (err) { /* not json */ }
       if (xhr.status === 200 && data.ok) {
         activeUpload = null;
-        cancel.disabled = true;
+        setAction("processing");
         window.location = data.redirect;
       } else {
         failed("Upload failed: " + (data.error || xhr.statusText));
