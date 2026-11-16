@@ -194,6 +194,40 @@
   const metrics = document.getElementById("upload-metrics");
   const status = document.getElementById("upload-status");
   const button = form.querySelector("button[type=submit]");
+  const cancel = document.getElementById("cancel-upload");
+  const browse = zone.querySelector("button");
+  const comment = form.querySelector("input[name=comment]");
+  let activeUpload = null;
+  cancel.hidden = false;
+
+  const setProgress = (pct) => {
+    bar.style.width = (pct === null ? 0 : pct) + "%";
+    if (pct === null) progress.removeAttribute("aria-valuenow");
+    else progress.setAttribute("aria-valuenow", pct);
+  };
+  const setBusy = (busy) => {
+    button.disabled = busy;
+    input.disabled = busy;
+    browse.disabled = busy;
+    comment.disabled = busy;
+    zone.setAttribute("aria-disabled", String(busy));
+    form.setAttribute("aria-busy", String(busy));
+    cancel.disabled = !busy;
+  };
+  const finish = (message) => {
+    activeUpload = null;
+    setBusy(false);
+    setProgress(0);
+    metrics.textContent = "";
+    status.textContent = message;
+  };
+  cancel.addEventListener("click", () => {
+    if (!activeUpload || activeUpload.phase !== "sending") return;
+    const xhr = activeUpload.xhr;
+    // Invalidate this request first: abort and queued events must not change a retry.
+    finish("Transfer cancelled. You can upload the selected file again. If the server already received it, it may still appear in My Files; check there before retrying.");
+    xhr.abort();
+  });
 
   const show = () => {
     if (input.files.length) {
@@ -207,19 +241,19 @@
       zone.classList.add("has-file");
     }
   };
-  zone.addEventListener("click", () => input.click());
+  zone.addEventListener("click", () => { if (!activeUpload) input.click(); });
   zone.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!activeUpload) input.click(); }
   });
   input.addEventListener("change", show);
   ["dragenter", "dragover"].forEach((ev) =>
-    zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add("drag"); })
+    zone.addEventListener(ev, (e) => { e.preventDefault(); if (!activeUpload) zone.classList.add("drag"); })
   );
   ["dragleave", "drop"].forEach((ev) =>
     zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove("drag"); })
   );
   zone.addEventListener("drop", (e) => {
-    if (e.dataTransfer.files.length) {
+    if (!activeUpload && e.dataTransfer.files.length) {
       input.files = e.dataTransfer.files;
       show();
     }
@@ -227,28 +261,28 @@
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (button.disabled) return;
+    if (activeUpload || button.disabled) return;
     if (!input.files.length) {
       status.textContent = "Choose a file first.";
       return;
     }
+    // Build the body before disabling fields: disabled inputs are omitted by FormData.
+    const body = new FormData(form);
     const xhr = new XMLHttpRequest();
+    const request = { xhr, phase: "sending" };
+    activeUpload = request;
+    const current = () => activeUpload === request;
     const started = performance.now();
-    const setProgress = (pct) => {
-      bar.style.width = (pct === null ? 0 : pct) + "%";
-      if (pct === null) progress.removeAttribute("aria-valuenow");
-      else progress.setAttribute("aria-valuenow", pct);
-    };
     const processing = () => {
+      if (!current()) return;
+      request.phase = "processing";
+      cancel.disabled = true;
       setProgress(100);
       metrics.textContent = "";
       status.textContent = "Chunking, hashing, replicating to storage nodes" + (form.dataset.mode === "blockchain" ? " and registering on-chain…" : "…");
     };
     const failed = (message) => {
-      button.disabled = false;
-      setProgress(0);
-      metrics.textContent = "";
-      status.textContent = message;
+      if (current()) finish(message);
     };
     setProgress(0);
     metrics.textContent = "Calculating speed…";
@@ -256,6 +290,7 @@
     xhr.open("POST", form.action);
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhr.upload.onprogress = (ev) => {
+      if (!current() || request.phase !== "sending") return;
       const info = window.BSUploadProgress.describe(ev.loaded, ev.lengthComputable ? ev.total : null,
                                                     performance.now() - started);
       setProgress(info.percent);
@@ -265,16 +300,24 @@
     };
     xhr.upload.onload = processing;
     xhr.onload = () => {
+      if (!current()) return;
       let data = {};
       try { data = JSON.parse(xhr.responseText); } catch (err) { /* not json */ }
       if (xhr.status === 200 && data.ok) {
+        activeUpload = null;
+        cancel.disabled = true;
         window.location = data.redirect;
       } else {
         failed("Upload failed: " + (data.error || xhr.statusText));
       }
     };
     xhr.onerror = () => failed("Network error during upload.");
-    button.disabled = true;
-    xhr.send(new FormData(form));
+    xhr.onabort = () => failed("Transfer stopped. Check My Files before retrying if the server already received the file.");
+    setBusy(true);
+    try {
+      xhr.send(body);
+    } catch (err) {
+      failed("Could not start the upload. Please try again.");
+    }
   });
 })();
