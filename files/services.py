@@ -196,7 +196,7 @@ def get_version(file: StoredFile, number: int | None) -> FileVersion:
     return version
 
 
-def open_download(user, file: StoredFile, number: int | None = None):
+def open_download(user, file: StoredFile, number: int | None = None, *, log_transfer=True, window=None):
     """Authorize, check the manifest against the registered root, and return a byte generator."""
     coord = get_coordinator()
     coord.require(user, file, PERM_READ)
@@ -211,8 +211,9 @@ def open_download(user, file: StoredFile, number: int | None = None):
     def stream():
         start = time.perf_counter()
         sent, status, error = 0, "ok", ""
+        source = ctrl.iter_chunks(chunks, window=window)
         try:
-            for data in ctrl.iter_chunks(chunks):
+            for data in source:
                 sent += len(data)
                 yield data
         except StorageError as exc:
@@ -222,8 +223,10 @@ def open_download(user, file: StoredFile, number: int | None = None):
             status = "aborted"
             raise
         finally:
-            _log_transfer(user, file, version.number, Transfer.DOWNLOAD, coord.mode, start, ctrl=ctrl,
-                          status=status, error=error, size=sent, chunks=len(chunks))
+            source.close()
+            if log_transfer:
+                _log_transfer(user, file, version.number, Transfer.DOWNLOAD, coord.mode, start, ctrl=ctrl,
+                              status=status, error=error, size=sent, chunks=len(chunks))
 
     return version, stream(), {"root": registered, "source": coord.source, "mode": coord.mode}
 

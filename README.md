@@ -138,6 +138,31 @@ Apply the new database migration with `python manage.py migrate`. Owners can
 also read paginated history at `GET /api/files/<file-id>/activity/` (standard
 `limit` and `offset` parameters). This endpoint is read-only.
 
+## Preview files
+
+Open an owned or shared file and click **Preview vN** beside Download. The selected
+version opens inside BlockShare, with a Back to file link and a Download fallback.
+Supported formats are PNG, JPEG, GIF, WebP, PDF (using the browser's built-in viewer),
+and small UTF-8 text files such as TXT, Markdown, CSV, JSON, code, and logs.
+
+Previews are limited to 20 MiB, with a 1 MiB limit for text. Unsupported formats,
+including Office documents, HTML, and SVG, retain the normal download option.
+Text is escaped, and inline image/PDF types are selected from content signatures
+rather than the uploaded MIME type. PDF display depends on browser support.
+
+Every preview request uses the same permission, Merkle-root, and chunk verification
+as downloading. Shared readers and writers can preview; revoked users cannot make
+new preview requests. Responses are not cached. A preview still transfers content
+to the browser and does not prevent saving or copying it.
+
+Image/PDF page views inspect only the first verified chunk to identify the format.
+The content endpoint streams verified chunks with a one-chunk fetch window and
+reuses its signature chunk, instead of buffering the entire file. Text previews
+remain buffered within the 1 MiB limit so they can be decoded and escaped safely.
+Preview reads are excluded from transfer logs; ordinary downloads still create
+their normal download records. If a later chunk becomes unavailable during a
+stream, the response is interrupted rather than serving unverified content.
+
 ## Tests
 
 The upload page displays bytes sent, average transfer speed, and approximate time
