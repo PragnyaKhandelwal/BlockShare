@@ -11,7 +11,10 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction, IntegrityError
 from django.db.models import Avg, Count, Sum
 from django.core.paginator import Paginator
-from django.http import Http404, JsonResponse, StreamingHttpResponse
+from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.utils.http import content_disposition_header
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.cache import never_cache
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
@@ -378,6 +381,39 @@ def download(request, pk):
     resp["X-BlockShare-Merkle-Root"] = info["root"]
     resp["X-BlockShare-Coordinator"] = info["mode"]
     return resp
+
+
+@login_required
+@require_GET
+@never_cache
+@xframe_options_sameorigin
+def file_preview(request, pk, content=False):
+    from files.preview import load_preview
+
+    file, _ = _load(request, pk)
+    try:
+        number = int(request.GET.get("v") or file.latest_version)
+        if number < 1:
+            raise ValueError
+        version, kind, mime, data = load_preview(request.user, file, number)
+    except ValueError:
+        return HttpResponse("Invalid version.", status=400)
+    except (services.ServiceError, CoordinationError) as exc:
+        return HttpResponse(str(exc), status=400, content_type="text/plain")
+    if content:
+        if kind not in ("image", "pdf"):
+            return HttpResponse("Inline preview unavailable.", status=415, content_type="text/plain")
+        response = HttpResponse(data, content_type=mime)
+        response["Content-Disposition"] = content_disposition_header(False, file.name)
+        response["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'self'"
+        response["X-Content-Type-Options"] = "nosniff"
+    else:
+        response = render(request, "web/file_preview.html", {
+            "file": file, "version": version, "kind": kind,
+            "text": data if kind == "text" else "", "reason": data if kind is None else "",
+        })
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 def _action(request, pk, fn, success):

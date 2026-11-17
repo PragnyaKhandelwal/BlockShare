@@ -15,6 +15,7 @@
     </div>
   </div>
   <div class="actions">
+    <a class="btn" href="{% url 'file_preview' file.pk %}?v={{ version.number }}">Preview v{{ version.number }}</a>
     <a class="btn primary" href="{% url 'file_download' file.pk %}?v={{ version.number }}"><svg class="ic sm"><use href="#i-download"/></svg>Download v{{ version.number }}</a>
     <form method="post" action="{% url 'file_verify' file.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="v" value="{{ version.number }}"><button class="btn"><svg class="ic sm"><use href="#i-check"/></svg>Verify integrity</button></form>
   </div>
