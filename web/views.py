@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction, IntegrityError
 from django.db.models import Avg, Count, Sum
+from django.core.paginator import Paginator
 from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -355,6 +356,8 @@ def file_detail(request, pk):
         "verify": request.session.pop(f"verify:{file.pk}", None),
         "chain_txs": ChainTransaction.objects.filter(file=file)[:10],
         "transfers": file.transfers.select_related("user")[:8],
+        "sharing_activity": Paginator(services.sharing_activity(request.user, file), 25).get_page(
+            request.GET.get("activity_page")) if perm == "owner" else None,
         "explorer_tx": settings.BLOCKCHAIN_EXPLORER_TX_URL,
         "users": get_user_model().objects.exclude(pk=request.user.pk).order_by("username"),
     }

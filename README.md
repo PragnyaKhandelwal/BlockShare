@@ -121,6 +121,23 @@ docker run -p 8000:8000 -e SECRET_KEY=... -e ADMIN_PASSWORD=... blockshare
 
 To use a public test network instead of the built-in chain, set `BLOCKCHAIN_RPC_URL`, `BLOCKCHAIN_OPERATOR_KEY` and `BLOCKCHAIN_EXPLORER_TX_URL`. [`.env.example`](.env.example) lists every setting.
 
+## File sharing activity
+
+On a file's details page, its current owner can open **Sharing activity** to see
+who granted access, changed a permission, or revoked access, and when. Events are
+shown newest first, with 25 per page. Repeating an unchanged permission does not
+add another event. Shared readers and writers cannot view this history.
+
+Events are recorded for successful sharing actions through the web UI and REST
+API from the time this feature is installed; earlier changes and actions made
+outside BlockShare are not reconstructed. Username snapshots remain readable
+after an account is renamed or deleted. Existing version history continues to
+show upload authors separately.
+
+Apply the new database migration with `python manage.py migrate`. Owners can
+also read paginated history at `GET /api/files/<file-id>/activity/` (standard
+`limit` and `offset` parameters). This endpoint is read-only.
+
 ## Tests
 
 The upload page displays bytes sent, average transfer speed, and approximate time

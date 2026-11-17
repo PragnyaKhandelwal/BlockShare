@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import time
+from contextlib import nullcontext
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -16,11 +17,11 @@ from django.utils import timezone
 
 from accounts.wallet import ensure_wallet
 from coordination import get_coordinator
-from coordination.base import PERM_OWNER, PERM_READ, PERM_WRITE, CoordinationError
+from coordination.base import PERM_NONE, PERM_OWNER, PERM_READ, PERM_WRITE, CoordinationError
 from coordination.merkle import merkle_proof, merkle_root
 from storage.controller import StorageController, StorageError
 
-from .models import Chunk, FileVersion, StoredFile, Transfer
+from .models import Chunk, FileVersion, SharingActivity, StoredFile, Transfer
 
 
 class ServiceError(Exception):
@@ -284,11 +285,42 @@ def find_user(username: str):
 def share(owner, file, username: str, permission: str):
     if permission not in (PERM_READ, PERM_WRITE):
         raise ServiceError("Permission must be read or write.")
-    return get_coordinator().share_file(owner, file, find_user(username), permission)
+    return _change_access(owner, file, find_user(username), permission)
 
 
 def revoke(owner, file, username: str):
-    get_coordinator().revoke_access(owner, file, find_user(username))
+    _change_access(owner, file, find_user(username), PERM_NONE)
+
+
+def _change_access(owner, file, target, permission):
+    coord = get_coordinator()
+    # Local changes and their event commit together. Never hold a DB transaction
+    # open over a coordinator's remote calls.
+    conventional = coord.mode == "conventional"
+    with transaction.atomic() if conventional else nullcontext():
+        if conventional:
+            file = StoredFile.objects.select_for_update().select_related("owner").get(pk=file.pk)
+        coord.require(owner, file, PERM_OWNER)
+        previous = coord.check_permission(target, file)
+        if permission == PERM_NONE:
+            result = coord.revoke_access(owner, file, target)
+            action = SharingActivity.Action.REVOKED
+        else:
+            result = coord.share_file(owner, file, target, permission)
+            action = SharingActivity.Action.SHARED if previous == PERM_NONE else SharingActivity.Action.CHANGED
+        if previous != permission:
+            SharingActivity.objects.create(
+                file=file, actor=owner, target=target, actor_name=owner.get_username(),
+                target_name=target.get_username(), action=action,
+                previous_permission=previous, permission=permission,
+            )
+        return result
+
+
+def sharing_activity(owner, file):
+    """Only the current owner can read the history of access changes."""
+    get_coordinator().require(owner, file, PERM_OWNER)
+    return file.sharing_activity.all()
 
 
 def transfer_ownership(owner, file, username: str):

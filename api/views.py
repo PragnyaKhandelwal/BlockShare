@@ -86,6 +86,19 @@ class FileViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Destr
             return _error(exc, 404)
         return Response(s.FileDetailSerializer(file, context={"permissions": {file.pk: perm}}).data)
 
+    @extend_schema(responses=s.SharingActivitySerializer(many=True))
+    @action(detail=True, methods=["get"])
+    def activity(self, request, pk=None):
+        try:
+            file, _ = self._file(pk)
+            events = services.sharing_activity(request.user, file)
+        except (services.ServiceError, CoordinationError) as exc:
+            return _error(exc, 403)
+        page = self.paginate_queryset(events)
+        if page is not None:
+            return self.get_paginated_response(s.SharingActivitySerializer(page, many=True).data)
+        return Response(s.SharingActivitySerializer(events, many=True).data)
+
     def destroy(self, request, pk=None):
         try:
             file, _ = self._file(pk)

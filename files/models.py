@@ -96,6 +96,28 @@ class Share(models.Model):
         unique_together = [("file", "user")]
 
 
+class SharingActivity(models.Model):
+    class Action(models.TextChoices):
+        SHARED = "shared", "Access granted"
+        CHANGED = "permission_changed", "Permission changed"
+        REVOKED = "revoked", "Access revoked"
+
+    PERMISSIONS = [("none", "No access"), *Share.PERMISSION_CHOICES]
+    file = models.ForeignKey(StoredFile, on_delete=models.CASCADE, related_name="sharing_activity")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    target = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    # Snapshots keep history understandable after an account is renamed or removed.
+    actor_name = models.CharField(max_length=150)
+    target_name = models.CharField(max_length=150)
+    action = models.CharField(max_length=20, choices=Action.choices)
+    previous_permission = models.CharField(max_length=10, choices=PERMISSIONS)
+    permission = models.CharField(max_length=10, choices=PERMISSIONS)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+
 class Transfer(models.Model):
     UPLOAD = "upload"
     DOWNLOAD = "download"
