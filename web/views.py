@@ -388,22 +388,26 @@ def download(request, pk):
 @never_cache
 @xframe_options_sameorigin
 def file_preview(request, pk, content=False):
-    from files.preview import load_preview
+    from files.preview import load_preview, open_preview_content
 
     file, _ = _load(request, pk)
     try:
         number = int(request.GET.get("v") or file.latest_version)
         if number < 1:
             raise ValueError
-        version, kind, mime, data = load_preview(request.user, file, number)
+        if content:
+            version, mime, stream = open_preview_content(request.user, file, number)
+        else:
+            version, kind, mime, data = load_preview(request.user, file, number)
     except ValueError:
         return HttpResponse("Invalid version.", status=400)
     except (services.ServiceError, CoordinationError) as exc:
         return HttpResponse(str(exc), status=400, content_type="text/plain")
     if content:
-        if kind not in ("image", "pdf"):
+        if mime is None:
             return HttpResponse("Inline preview unavailable.", status=415, content_type="text/plain")
-        response = HttpResponse(data, content_type=mime)
+        response = StreamingHttpResponse(stream, content_type=mime)
+        response["Content-Length"] = str(version.size)
         response["Content-Disposition"] = content_disposition_header(False, file.name)
         response["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'self'"
         response["X-Content-Type-Options"] = "nosniff"

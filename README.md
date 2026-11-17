@@ -155,6 +155,14 @@ as downloading. Shared readers and writers can preview; revoked users cannot mak
 new preview requests. Responses are not cached. A preview still transfers content
 to the browser and does not prevent saving or copying it.
 
+Image/PDF page views inspect only the first verified chunk to identify the format.
+The content endpoint streams verified chunks with a one-chunk fetch window and
+reuses its signature chunk, instead of buffering the entire file. Text previews
+remain buffered within the 1 MiB limit so they can be decoded and escaped safely.
+Preview reads are excluded from transfer logs; ordinary downloads still create
+their normal download records. If a later chunk becomes unavailable during a
+stream, the response is interrupted rather than serving unverified content.
+
 ## Tests
 
 The upload page displays bytes sent, average transfer speed, and approximate time
