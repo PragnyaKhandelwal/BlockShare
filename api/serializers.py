@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 from coordination.models import ChainTransaction
 from core.models import SystemConfig
-from files.models import Chunk, FileVersion, Share, StoredFile, Transfer
+from files.models import Chunk, FileVersion, Share, SharingActivity, StoredFile, Transfer
 from storage.models import StorageNode
 
 
@@ -47,6 +47,13 @@ class ShareSerializer(serializers.ModelSerializer):
     class Meta:
         model = Share
         fields = ["user", "permission", "tx_hash", "created_at"]
+
+
+class SharingActivitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SharingActivity
+        fields = ["id", "actor_name", "target_name", "action", "previous_permission", "permission", "created_at"]
+        read_only_fields = fields
 
 
 class FileSerializer(serializers.ModelSerializer):
