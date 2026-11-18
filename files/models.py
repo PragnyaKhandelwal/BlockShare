@@ -149,10 +149,45 @@ class Transfer(models.Model):
         return round(self.bytes * 8 / (self.duration_ms / 1000) / 1_000_000, 2)
 
     @property
+    def log_entries(self) -> list[dict]:
+        """Display copies of retained events; never rewrite historical JSON.
+
+        Old DEDUP entries named an arbitrary existing holder, not a contacted
+        node. Pipeline membership alone is likewise not contact evidence.
+        """
+        entries = []
+        for raw in self.detail if isinstance(self.detail, list) else []:
+            if not isinstance(raw, dict):
+                continue
+            entry = raw.copy()
+            entry["contacted"] = raw.get("contacted") is True if "contacted" in raw else (
+                raw.get("op") != "DEDUP" and bool(raw.get("endpoint")))
+            entry["acknowledgements_recorded"] = "stored_on" in raw
+            entries.append(entry)
+        return entries
+
+    @property
     def nodes_used(self) -> list[str]:
-        seen = []
-        for ex in self.detail or []:
-            node = ex.get("node")
-            if node and node not in seen:
-                seen.append(node)
-        return seen
+        """Upload contact attempts; preserve the node list for other transfer types."""
+        if self.direction != self.UPLOAD:
+            # This step changes upload interpretation only; retain other history views.
+            return list(dict.fromkeys(ex["node"] for ex in self.log_entries
+                                      if isinstance(ex, dict) and isinstance(ex.get("node"), str) and ex["node"]))
+        return list(dict.fromkeys(ex["node"] for ex in self.log_entries
+                                  if ex["contacted"] and isinstance(ex.get("node"), str) and ex["node"]))
+
+    def _recorded_nodes(self, field) -> list[str]:
+        nodes = []
+        for entry in self.log_entries:
+            values = entry.get(field)
+            if isinstance(values, list):
+                nodes.extend(node for node in values if isinstance(node, str) and node)
+        return list(dict.fromkeys(nodes))
+
+    @property
+    def acknowledged_nodes(self) -> list[str]:
+        return self._recorded_nodes("stored_on")
+
+    @property
+    def existing_replica_nodes(self) -> list[str]:
+        return self._recorded_nodes("existing_replicas")

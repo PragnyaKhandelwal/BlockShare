@@ -12,17 +12,36 @@
   <div class="stat"><span class="icon-tile {% if t.status == 'ok' %}tone-green{% else %}tone-red{% endif %}"><svg class="ic"><use href="#i-check-circle"/></svg></span><div class="body"><div class="label">Status</div><div class="value text"><span class="badge {{ t.status }}">{{ t.status }}</span></div><div class="hint">{{ t.chunks }} chunks · {{ t.deduplicated }} deduplicated</div></div></div>
 </div>
 {% if t.error %}<ul class="messages"><li class="error">{{ t.error }}</li></ul>{% endif %}
+{% if t.direction == "upload" %}
+<div class="card">
+  <h2>Upload node roles</h2>
+  <div class="kv">
+    <div>Coordinator contact attempts</div><div>{{ t.nodes_used|join:", "|default:"None recorded" }}</div>
+    <div>Storage acknowledged by nodes</div><div>{{ t.acknowledged_nodes|join:", "|default:"None recorded" }}</div>
+    <div>Existing replica locations (metadata)</div><div>{{ t.existing_replica_nodes|join:", "|default:"Not recorded" }}</div>
+  </div>
+  <p class="muted small">The coordinator contacts pipeline heads; downstream hops are node-to-node. A planned pipeline is not proof of successful storage. Acknowledgements come from stored_on responses; existing locations are metadata, not new probes. Summaries cover the retained log only (up to 500 events, including manifest operations). Older records may have incomplete information.</p>
+</div>
+{% endif %}
 <div class="card tight">
-  <div class="card-head"><h2>BSP/1 Frame Log <span class="muted small">— one row per TCP request/response exchange (72-byte header + payload)</span></h2></div>
+  <div class="card-head"><h2>{% if t.direction == "upload" %}Upload transfer log <span class="muted small">— network attempts and local decisions; BSP/1 frames have a 72-byte header + payload</span>{% else %}BSP/1 Frame Log <span class="muted small">— one row per TCP request/response exchange (72-byte header + payload)</span>{% endif %}</h2></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Chunk</th><th>Op</th><th>Node</th><th>Endpoint</th><th>Key</th><th>Sent</th><th>Received</th><th>RTT</th><th>Status</th><th>Notes</th></tr></thead>
-    <tbody>{% for ex in t.detail %}<tr>
-      <td>{{ ex.chunk|default_if_none:"—" }}</td><td><code>{{ ex.op|default:"" }}</code></td><td>{{ ex.node }}</td>
+    <tbody>{% for ex in t.log_entries %}<tr>
+      <td>{{ ex.chunk|default_if_none:"—" }}</td><td><code>{{ ex.op|default:"" }}</code></td><td>{{ ex.node }}{% if t.direction == "upload" %}<div class="muted small">{% if ex.contacted %}Direct coordinator attempt{% elif ex.op == "DEDUP" %}Local dedup decision{% else %}Contact not recorded{% endif %}</div>{% endif %}</td>
       <td class="mono small">{{ ex.endpoint|default:"" }}</td><td class="mono small">{{ ex.key|default:"" }}</td>
       <td>{{ ex.bytes_sent|default:0|filesizeformat }}</td><td>{{ ex.bytes_received|default:0|filesizeformat }}</td>
       <td>{{ ex.rtt_ms|default:"" }}{% if ex.rtt_ms %} ms{% endif %}</td>
       <td><span class="badge {% if ex.status == 'OK' %}ok{% elif ex.status == 'SKIPPED' %}unknown{% else %}failed{% endif %}">{{ ex.status|default:"" }}</span></td>
-      <td class="small">{% if ex.pipeline %}pipeline {{ ex.pipeline|join:" → " }}{% endif %}{% if ex.result %}{{ ex.result }}{% endif %}{% if ex.error %}<span style="color:var(--bad)">{{ ex.error }}</span>{% endif %}</td>
+      <td class="small">
+        {% if t.direction == "upload" %}
+          {% if ex.pipeline %}<div>Planned pipeline: {{ ex.pipeline|join:" → " }}</div>{% endif %}
+          {% if ex.acknowledgements_recorded %}<div>Storage acknowledgements: {{ ex.stored_on|join:", "|default:"None reported" }}</div>{% endif %}
+          {% if ex.existing_replicas %}<div>Existing replicas (metadata): {{ ex.existing_replicas|join:", " }}</div>{% endif %}
+          {% if ex.forward_errors %}<div>Downstream failure reported: {{ ex.forward_errors }}</div>{% endif %}
+        {% else %}{% if ex.pipeline %}pipeline {{ ex.pipeline|join:" → " }}{% endif %}{% endif %}
+        {% if ex.result %}{{ ex.result }}{% endif %}{% if ex.error %}<span style="color:var(--bad)">{{ ex.error }}</span>{% endif %}
+      </td>
     </tr>{% empty %}<tr><td colspan="10">No network exchanges recorded.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>

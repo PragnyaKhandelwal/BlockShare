@@ -147,9 +147,11 @@ class StorageController:
                 res = client.put(data, forward_to=[n.endpoint for n in rest], key=key)
                 got = set(res.get("stored_on", [])) & {n.node_id for n in batch}
                 self.log.add(head.node_id, client, chunk=index, pipeline=[n.node_id for n in batch],
-                             stored_on=sorted(got))
+                             stored_on=sorted(got), existing_replicas=sorted(already), contacted=True,
+                             forward_errors=res.get("failed", []))
             except NodeError as exc:
-                self.log.add(head.node_id, client, chunk=index, error=str(exc))
+                self.log.add(head.node_id, client, chunk=index, error=str(exc),
+                             pipeline=[n.node_id for n in batch], existing_replicas=sorted(already), contacted=True)
                 got = set()
                 pool = rest + pool  # head is unreachable - retry the others with a new head
             stored |= got
@@ -185,7 +187,7 @@ class StorageController:
                     dedup += 1
                     results[index] = ChunkResult(index, sha, len(data), sorted(already), deduplicated=True)
                     self.log.add(sorted(already)[0], None, op="DEDUP", chunk=index, key=sha[:16],
-                                 bytes_sent=0, status="SKIPPED")
+                                 bytes_sent=0, status="SKIPPED", existing_replicas=sorted(already), contacted=False)
                     continue
                 fut = pool.submit(self._replicate, data, sha, already, self.placement(sha), index)
                 pending[fut] = (index, sha, len(data), already)
