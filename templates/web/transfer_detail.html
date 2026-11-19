@@ -38,7 +38,9 @@
           {% if ex.pipeline %}<div>Planned pipeline: {{ ex.pipeline|join:" → " }}</div>{% endif %}
           {% if ex.acknowledgements_recorded %}<div>Storage acknowledgements: {{ ex.stored_on|join:", "|default:"None reported" }}</div>{% endif %}
           {% if ex.existing_replicas %}<div>Existing replicas (metadata): {{ ex.existing_replicas|join:", " }}</div>{% endif %}
-          {% if ex.forward_errors %}<div>Downstream failure reported: {{ ex.forward_errors }}</div>{% endif %}
+          {% if ex.forward_errors %}<div>Downstream failure reported:
+            {% for failure in ex.forward_errors %}{{ failure.target }} ({{ failure.error }}){% if not forloop.last %}, {% endif %}{% endfor %}
+          </div>{% endif %}
         {% else %}{% if ex.pipeline %}pipeline {{ ex.pipeline|join:" → " }}{% endif %}{% endif %}
         {% if ex.result %}{{ ex.result }}{% endif %}{% if ex.error %}<span style="color:var(--bad)">{{ ex.error }}</span>{% endif %}
       </td>
