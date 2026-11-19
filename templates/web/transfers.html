@@ -2,6 +2,7 @@
 {% block title %}Transfers{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1>File Transfers</h1><div class="sub">Network activity between the coordinator and the storage nodes{% if user.is_staff %} (all users){% endif %}. Open a transfer to see its BSP/1 frame log.</div></div></div>
+<p class="muted small">For uploads, the Nodes column lists direct coordinator contact attempts, not every replica or planned pipeline member. Open an upload to see the separate node roles.</p>
 <div class="card">
   <div class="card-head"><h2>Throughput of recent transfers</h2>
     <div class="legend"><span><i class="swatch" style="background:#6366f1"></i>Upload</span><span><i class="swatch" style="background:#14b8a6"></i>Download</span><span><i class="swatch" style="background:#f59e0b"></i>Verify</span><span><i class="swatch" style="background:#a855f7"></i>Repair</span></div>

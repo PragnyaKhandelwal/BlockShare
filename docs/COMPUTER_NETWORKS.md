@@ -103,6 +103,20 @@ The ring share of each node is displayed on the *Storage Nodes* page.
 * **Deduplication** — content addressing means an identical chunk already stored R times is not sent again.
 * **Frame log** — every request/response exchange (op, node, bytes, RTT, status, pipeline) is stored per transfer and shown on *Transfers → #id*; throughput is plotted per transfer.
 
+### Upload history: contact attempts versus replicas
+
+Upload details distinguish direct coordinator attempts (`node`, `contacted`),
+planned pipeline members (`pipeline`), and returned storage acknowledgements
+(`stored_on`). A downstream replica is not automatically a direct coordinator
+target. Failed head attempts remain visible, and partial acknowledgements must
+not be treated as full pipeline success.
+
+`DEDUP` is a local decision with `contacted: false`; its `existing_replicas`
+list comes from metadata, not a new network probe. Older saved JSON is not
+rewritten. The summaries use only the retained log (the last 500 events,
+including manifest operations); missing historical information is not rebuilt
+from current placement. No protocol, replication, or download behavior changes.
+
 ## 7. HTTP/1.1 server written by hand
 
 Each node runs a minimal HTTP/1.1 responder on raw asyncio streams (request
