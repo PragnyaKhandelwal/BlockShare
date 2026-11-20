@@ -54,6 +54,55 @@ Design points worth discussing:
 * **Nagle disabled** (`TCP_NODELAY`) on the client to keep small control messages snappy.
 * **Foreign traffic** — the node reads the 4-byte magic before anything else. Anything that isn't `BSP1` is dropped; if it looks like an HTTP request (cloud load balancers and port scanners probe every open port with `HEAD /`), the node answers `400 Bad Request` with a one-line explanation, counts it in `foreign_connections`, and logs a summary at most once a minute.
 
+### Incoming BSP read timeouts
+
+Storage nodes close stalled incoming connections instead of waiting indefinitely.
+The limits are node settings (seconds), independent of Django's outgoing client
+timeout:
+
+| Phase | Default | CLI flag | Environment variable |
+|---|---|---|---|
+| Waiting for the first byte of a request, including between requests | 30 s | `--idle-timeout` | `NODE_IDLE_TIMEOUT_S` |
+| Completing the 72-byte header after its first byte | 10 s | `--header-timeout` | `NODE_HEADER_TIMEOUT_S` |
+| No progress while receiving the payload | 30 s | `--payload-idle-timeout` | `NODE_PAYLOAD_IDLE_TIMEOUT_S` |
+
+Values must be positive and finite. CLI flags override environment variables;
+`--cluster` applies the limits to every node. Docker Compose passes the variables
+to its storage containers; local development inherits exported variables.
+
+The header has a fixed deadline, so sending occasional header bytes does not
+extend it. The payload timer resets whenever another nonempty piece arrives:
+a slow upload can take longer than 30 seconds overall and still succeed. There
+is no total payload-duration limit in this change; a client that keeps supplying
+bytes within the idle limit can continue until the existing frame-size limit.
+Request dispatch, disk access, downstream replication and response writes are
+outside these incoming-read limits. The wire format, 72-byte header, CRC/HMAC
+validation, and multiple-frames-per-connection behavior are unchanged. An
+incomplete frame is closed without a BSP response and is never dispatched.
+
+After a timeout, `/stats` exposes `metrics.bsp_idle_timeouts`,
+`metrics.bsp_header_timeouts`, or `metrics.bsp_payload_timeouts`. The existing
+Prometheus endpoint exports them as `blockshare_node_bsp_*_timeouts`; like the
+other Counter fields, each appears after its first event. `/health` is unchanged.
+A clean EOF does not count as a timeout.
+
+For a manual local demonstration, run a standalone node:
+
+```bash
+python -m storage_node --node-id timeout-demo --port 9501 --udp-port 10501 --http-port 9701 --header-timeout 3
+```
+
+In another terminal, send only the magic prefix:
+
+```bash
+python -c "import socket; s=socket.create_connection(('127.0.0.1',9501)); s.settimeout(5); s.sendall(b'BSP1'); print(repr(s.recv(1))); s.close()"
+curl http://127.0.0.1:9701/stats
+```
+
+The socket prints `b''` when the server closes it after the header deadline, and
+the stats show a header-timeout event. This demonstrates connection cleanup,
+not a throughput benchmark.
+
 ### Replication pipeline (chain replication)
 
 A `PUT` with `FLAG_FORWARD` carries `[uint16 len][json list of host:port][chunk]`.

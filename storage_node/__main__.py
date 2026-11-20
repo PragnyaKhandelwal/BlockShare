@@ -5,7 +5,8 @@
 
 Every option can also be given through environment variables (NODE_ID,
 NODE_HOST, NODE_PORT, NODE_UDP_PORT, NODE_HTTP_PORT, NODE_ADVERTISE_HOST,
-NODE_PEERS, NODE_DATA_DIR, CLUSTER_KEY, NODE_LATENCY_MS).
+NODE_PEERS, NODE_DATA_DIR, CLUSTER_KEY, NODE_LATENCY_MS, NODE_IDLE_TIMEOUT_S,
+NODE_HEADER_TIMEOUT_S, NODE_PAYLOAD_IDLE_TIMEOUT_S).
 """
 from __future__ import annotations
 
@@ -39,6 +40,12 @@ def main():
     p.add_argument("--latency-ms", type=int, default=int(_env("NODE_LATENCY_MS", "0")),
                    help="artificial per-request delay (network emulation)")
     p.add_argument("--heartbeat", type=float, default=float(_env("NODE_HEARTBEAT_S", "2")))
+    p.add_argument("--idle-timeout", type=float, default=float(_env("NODE_IDLE_TIMEOUT_S", "30")),
+                   help="seconds waiting for the first byte of a BSP request (default: 30)")
+    p.add_argument("--header-timeout", type=float, default=float(_env("NODE_HEADER_TIMEOUT_S", "10")),
+                   help="seconds to finish the BSP header after its first byte (default: 10)")
+    p.add_argument("--payload-idle-timeout", type=float, default=float(_env("NODE_PAYLOAD_IDLE_TIMEOUT_S", "30")),
+                   help="seconds without payload progress before closing the connection (default: 30)")
     p.add_argument("--cluster", type=int, default=int(_env("NODE_CLUSTER", "0")),
                    help="run N nodes (node-a, node-b, ...) on consecutive ports in this process")
     args = p.parse_args()
@@ -58,6 +65,8 @@ def main():
                 udp_port=udp_base + i, http_port=(args.http_port + i) if args.http_port else None,
                 advertise_host=host, peers=[e for e in udp_eps if e != udp_eps[i]], cluster_key=key,
                 heartbeat_interval=args.heartbeat, latency_ms=args.latency_ms,
+                idle_timeout=args.idle_timeout, header_timeout=args.header_timeout,
+                payload_idle_timeout=args.payload_idle_timeout,
             ))
     else:
         data_dir = args.data_dir if args.data_dir.rstrip("/\\").endswith(args.node_id) else os.path.join(args.data_dir, args.node_id)
@@ -66,6 +75,8 @@ def main():
             http_port=args.http_port, advertise_host=args.advertise_host,
             peers=[x.strip() for x in args.peers.split(",") if x.strip()], cluster_key=key,
             heartbeat_interval=args.heartbeat, latency_ms=args.latency_ms,
+            idle_timeout=args.idle_timeout, header_timeout=args.header_timeout,
+            payload_idle_timeout=args.payload_idle_timeout,
         ))
 
     async def run():

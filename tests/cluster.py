@@ -16,7 +16,7 @@ def free_port() -> int:
 
 
 class Cluster:
-    def __init__(self, n=3):
+    def __init__(self, n=3, **node_options):
         self.tmp = tempfile.TemporaryDirectory()
         self.loop = asyncio.new_event_loop()
         ports = [(free_port(), free_port()) for _ in range(n)]
@@ -24,7 +24,7 @@ class Cluster:
         self.nodes = [
             StorageNode(f"node-{chr(97 + i)}", f"{self.tmp.name}/n{i}", host="127.0.0.1", port=tcp, udp_port=udp,
                         advertise_host="127.0.0.1", peers=[e for e in udp_eps if e != udp_eps[i]],
-                        cluster_key=CLUSTER_KEY, heartbeat_interval=0.2)
+                        cluster_key=CLUSTER_KEY, heartbeat_interval=0.2, **node_options)
             for i, (tcp, udp) in enumerate(ports)
         ]
         self.thread = threading.Thread(target=self._run, daemon=True)

@@ -16,13 +16,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import socket
 import time
 from collections import Counter
 
 from .protocol import (
-    AUTHENTICATED_OPS, EMPTY_KEY, FLAG_FORWARD, MAGIC, RESPONSE_BIT, Frame, Op, ProtocolError, Status,
-    check_payload, encode, pack_forward, parse_endpoint, read_frame, sha256, unpack_forward, verify_auth,
+    AUTHENTICATED_OPS, EMPTY_KEY, FLAG_FORWARD, HEADER_SIZE, MAGIC, RESPONSE_BIT, Frame, Op, ProtocolError, Status,
+    check_payload, decode_header, encode, pack_forward, parse_endpoint, read_frame, sha256, unpack_forward, verify_auth,
 )
 from .store import ChunkStore
 
@@ -80,7 +81,16 @@ class StorageNode:
     def __init__(self, node_id: str, data_dir: str, host: str = "0.0.0.0", port: int = 9000,
                  udp_port: int | None = None, http_port: int | None = None, advertise_host: str | None = None,
                  peers: list[str] | None = None, cluster_key: bytes | None = None,
-                 heartbeat_interval: float = 2.0, latency_ms: int = 0):
+                 heartbeat_interval: float = 2.0, latency_ms: int = 0,
+                 idle_timeout: float = 30.0, header_timeout: float = 10.0,
+                 payload_idle_timeout: float = 30.0):
+        for name, value in (("idle_timeout", idle_timeout), ("header_timeout", header_timeout),
+                            ("payload_idle_timeout", payload_idle_timeout)):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be a positive, finite number of seconds")
+        self.idle_timeout = idle_timeout
+        self.header_timeout = header_timeout
+        self.payload_idle_timeout = payload_idle_timeout
         self.node_id = node_id
         self.host = host
         self.port = port
@@ -135,12 +145,24 @@ class StorageNode:
         self.metrics["connections"] += 1
         try:
             while True:
+                phase = "idle"
                 try:
-                    magic = await reader.readexactly(len(MAGIC))
+                    first = await asyncio.wait_for(reader.readexactly(1), self.idle_timeout)
+                    phase = "header"
+                    # One deadline for the entire header, including trickled bytes.
+                    async with asyncio.timeout(self.header_timeout):
+                        magic = first + await reader.readexactly(len(MAGIC) - 1)
+                        if magic == MAGIC:
+                            raw = magic + await reader.readexactly(HEADER_SIZE - len(MAGIC))
                     if magic != MAGIC:
                         await self._reject_foreign(magic, writer)
                         break
-                    frame = await read_frame(reader, magic)
+                    frame = decode_header(raw)
+                    phase = "payload"
+                    frame.payload = await self._read_payload(reader, frame._length)
+                except asyncio.TimeoutError:
+                    self.metrics[f"bsp_{phase}_timeouts"] += 1
+                    break
                 except asyncio.IncompleteReadError:
                     break
                 self.metrics["bytes_in"] += len(frame.payload)
@@ -156,6 +178,17 @@ class StorageNode:
             pass
         finally:
             writer.close()
+
+    async def _read_payload(self, reader: asyncio.StreamReader, length: int) -> bytes:
+        """Allow a slow transfer to continue while bytes keep arriving."""
+        payload = bytearray()
+        while len(payload) < length:
+            chunk = await asyncio.wait_for(reader.read(min(64 * 1024, length - len(payload))),
+                                           self.payload_idle_timeout)
+            if not chunk:
+                raise asyncio.IncompleteReadError(partial=b"", expected=length - len(payload))
+            payload.extend(chunk)
+        return bytes(payload)
 
     async def _reject_foreign(self, first: bytes, writer: asyncio.StreamWriter):
         """Someone connected with a different protocol (typically an HTTP health probe or port scan).
