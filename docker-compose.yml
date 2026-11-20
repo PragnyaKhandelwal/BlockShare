@@ -43,7 +43,11 @@ services:
   node-a: &node
     <<: *app
     command: python -m storage_node --node-id node-a --port 9000 --http-port 9300 --advertise-host 172.28.0.11 --peers 172.28.0.12:10000,172.28.0.13:10000 --data-dir /data/nodes
-    environment: { CLUSTER_KEY: "${CLUSTER_KEY:-compose-cluster-key}" }
+    environment:
+      CLUSTER_KEY: "${CLUSTER_KEY:-compose-cluster-key}"
+      NODE_IDLE_TIMEOUT_S: "${NODE_IDLE_TIMEOUT_S:-30}"
+      NODE_HEADER_TIMEOUT_S: "${NODE_HEADER_TIMEOUT_S:-10}"
+      NODE_PAYLOAD_IDLE_TIMEOUT_S: "${NODE_PAYLOAD_IDLE_TIMEOUT_S:-30}"
     healthcheck: { disable: true }
     volumes: [node-a:/data]
     ports: ["9301:9300"]
