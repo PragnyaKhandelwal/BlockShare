@@ -86,6 +86,14 @@ Prometheus endpoint exports them as `blockshare_node_bsp_*_timeouts`; like the
 other Counter fields, each appears after its first event. `/health` is unchanged.
 A clean EOF does not count as a timeout.
 
+Both HTTP `/stats` and BSP `STATS` also expose the running node's effective
+settings under `read_timeouts`, with `idle_seconds`, `header_seconds`, and
+`payload_idle_seconds`. For example, defaults are `30`, `10`, and `30`.
+These values come directly from the node instance, not from rereading environment
+variables, so administrators can verify the configuration actually in use.
+This read-only information is separate from timeout counters; `/health` and
+Prometheus `/metrics` responses are unchanged.
+
 For a manual local demonstration, run a standalone node:
 
 ```bash

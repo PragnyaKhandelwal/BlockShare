@@ -325,6 +325,11 @@ class StorageNode:
             "uptime_s": round(time.time() - self.started, 1),
             "offline": self.offline,
             "latency_ms": self.latency_ms,
+            "read_timeouts": {
+                "idle_seconds": self.idle_timeout,
+                "header_seconds": self.header_timeout,
+                "payload_idle_seconds": self.payload_idle_timeout,
+            },
             "metrics": dict(self.metrics),
             "peers": [p.as_dict(self.heartbeat_interval) for p in sorted(self.peers.values(), key=lambda p: p.node_id)],
         }
