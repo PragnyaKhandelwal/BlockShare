@@ -179,6 +179,12 @@ from current placement. No protocol, replication, or download behavior changes.
 Each node runs a minimal HTTP/1.1 responder on raw asyncio streams (request
 line parsing, `Content-Length`, `Connection: close`):
 `GET /health` (200/503), `GET /stats` (JSON), `GET /metrics` (Prometheus text format).
+`HEAD` is supported on the same routes (including `/`, the health alias): it
+returns GET-equivalent status and headers, with no response body. `Content-Length`
+describes the body that GET would return, not zero. This also applies to unhealthy
+health checks (503) and unknown paths (404). Other methods still return 405.
+For example, `curl -I http://localhost:9301/health` checks the monitoring port;
+the BSP/TCP data port remains a separate protocol.
 Docker health checks and browsers use it, e.g. `curl http://localhost:9301/stats`.
 
 ## 8. Network fault emulation (for the demo)
