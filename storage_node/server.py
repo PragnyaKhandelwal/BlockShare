@@ -394,7 +394,7 @@ class StorageNode:
             request_line = raw.split(b"\r\n", 1)[0].decode(errors="replace")
             method, path, _ = (request_line.split(" ") + ["", ""])[:3]
             path = path.split("?", 1)[0]
-            if method != "GET":
+            if method not in ("GET", "HEAD"):
                 status, ctype, body = "405 Method Not Allowed", "text/plain", b"method not allowed\n"
             elif path in ("/", "/health"):
                 ok = not self.offline
@@ -411,7 +411,7 @@ class StorageNode:
                 status, ctype, body = "404 Not Found", "text/plain", b"not found\n"
             head = (f"HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {len(body)}\r\n"
                     f"Server: BlockShare-Node/{self.node_id}\r\nConnection: close\r\n\r\n").encode()
-            writer.write(head + body)
+            writer.write(head if method == "HEAD" else head + body)
             await writer.drain()
         except (asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ConnectionError):
             pass
